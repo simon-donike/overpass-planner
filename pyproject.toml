@@ -73,7 +73,7 @@ select = ["E4", "E7", "E9", "F", "I", "UP"]
 "*.ipynb" = ["F401"]
 
 [tool.mypy]
-files = ["src/eo_overpass_predictor/api.py", "src/eo_overpass_predictor/cli.py", "src/eo_overpass_predictor/types.py"]
+files = ["src/eo_overpass_predictor/api.py", "src/eo_overpass_predictor/cli.py", "src/eo_overpass_predictor/presentation.py", "src/eo_overpass_predictor/types.py"]
 follow_imports = "silent"
 ignore_missing_imports = true
 check_untyped_defs = true

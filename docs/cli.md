@@ -27,3 +27,24 @@ Orbital data are downloaded/cached by default. `--offline`, `--tle-file`,
 `--cache-dir` and `--no-cache` work as on `predict`. ESA acquisition plans are
 checked only with local `--plans` or explicit `--fetch-plans`. Plan-download
 failure falls back to cached plans with a warning. Offline mode forbids fetching.
+
+## Read a pass status
+
+Each terminal/JSON/HTML pass separates:
+
+- **Geometry:** the model's nominal swath intersects the ROI; coverage is reported
+  separately as a percentage.
+- **Imaging:** expected or not expected under the direction, solar-elevation and
+  mission-latitude rules. This is not an acquisition observation.
+- **Acquisition evidence:** planned nominal, planned other mode, no matching
+  datatake in a loaded plan, unknown because no plan covers that date, or not
+  checked for Landsat. A missing plan never becomes a negative plan match.
+- **Orbital data:** absolute distance between the supplied TLE epoch and the
+  pass epoch, using the model's reported age. Fresh is <=7 days, aged is >7 to
+  14 days, and stale is >14 days. These labels are refresh reminders, not
+  statistical confidence levels. Historical calculations also flag elements
+  far into the future relative to the requested pass.
+
+Per-pass notes highlight aged elements, margins near the nominal swath edge,
+unknown plans and non-nominal acquisition modes. Imagery availability and cloud
+cover are not checked. Keep predictions near the element epoch.

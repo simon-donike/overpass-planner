@@ -9,6 +9,7 @@ from contextlib import contextmanager
 import geopandas as gpd
 import pandas as pd
 
+from ..presentation import describe_pass
 from ..types import DateInput
 from .orbits import _to_utc_timestamp
 
@@ -57,7 +58,8 @@ def summarise_overpasses(passes: gpd.GeoDataFrame) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Satellite, local day/date, local time window, UTC time,
         direction, ROI coverage, off-nadir angle, sun elevation, expected flag,
-        (if present) the ESA plan status.
+        acquisition evidence, TLE freshness and notes. Raw ESA plan status is
+        also included when available.
     """
 
     if passes.empty:
@@ -81,6 +83,15 @@ def summarise_overpasses(passes: gpd.GeoDataFrame) -> pd.DataFrame:
     )
     if "esa_plan_status" in passes:
         df["ESA plan"] = passes["esa_plan_status"]
+    statuses = [describe_pass(row) for _, row in passes.iterrows()]
+    df["Acquisition"] = [status["acquisition_label"] for status in statuses]
+    df["TLE data"] = [
+        f"{status['orbital_data']} ({abs(status['tle_age_days']):.1f} d from pass)"
+        for status in statuses
+    ]
+    df["Notes"] = [
+        " ".join(warning["message"] for warning in status["warnings"]) for status in statuses
+    ]
     return df
 
 
@@ -95,7 +106,7 @@ def next_overpasses(passes: gpd.GeoDataFrame, now_utc: DateInput | None = None) 
     def _cd(t):
         s = int((t - now).total_seconds())
         if s <= 0:
-            return "imaging now"
+            return "pass active"
         d, r = divmod(s, 86400)
         h, r = divmod(r, 3600)
         return f"{d}d {h:02d}h {r // 60:02d}m"
