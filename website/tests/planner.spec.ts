@@ -159,11 +159,12 @@ test('mobile usage notice supports click-away, Escape, explicit dismissal and pe
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('package logo loads in the header and is configured as the browser icon', async ({page}) => {
+test('original orbit logo loads in the header and is configured as the browser icon', async ({page}) => {
   await page.goto('./');
   await expect(page.locator('.brand-logo')).toBeVisible();
   await expect.poll(() => page.locator('.brand-logo').evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
-  await expect(page.locator('link[rel=icon]')).toHaveAttribute('href', './logo.png');
+  await expect(page.locator('.brand-logo')).toHaveAttribute('src', /(?:^|\/)logo\.svg$/);
+  await expect(page.locator('link[rel=icon]')).toHaveAttribute('href', './logo.svg');
   await expect(page.locator('#mobile-notice')).toBeHidden();
 });
 

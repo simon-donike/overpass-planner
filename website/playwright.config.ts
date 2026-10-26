@@ -7,7 +7,11 @@ export default defineConfig({
     actionTimeout: 15_000,
     baseURL: process.env.SITE_TEST_URL || 'http://127.0.0.1:4173',
     headless: true,
-    launchOptions: process.env.EO_CHROMIUM_PATH ? {executablePath: process.env.EO_CHROMIUM_PATH} : {},
+    launchOptions: {
+      ...(process.env.EO_CHROMIUM_PATH ? {executablePath: process.env.EO_CHROMIUM_PATH} : {}),
+      // Exercise the real WebGL renderer on headless machines without a GPU.
+      args: ['--enable-unsafe-swiftshader'],
+    },
   },
   expect: { timeout: 10_000 },
   workers: 1,

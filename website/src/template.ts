@@ -1,6 +1,6 @@
 export const template = `
 <header class="masthead">
-  <a class="brand" href="./" aria-label="Overpass home"><img class="brand-logo" src="${import.meta.env.BASE_URL}logo.png" alt="" width="44" height="44"><span>OVERPASS<small>EARTH OBSERVATION PLANNER</small></span></a>
+  <a class="brand" href="./" aria-label="Overpass home"><img class="brand-logo" src="${import.meta.env.BASE_URL}logo.svg" alt="" width="44" height="44"><span>OVERPASS<small>EARTH OBSERVATION PLANNER</small></span></a>
   <div class="header-meta"><span class="privacy-dot"></span> Calculated on your device <span class="version" id="version">PYTHON × WEBASSEMBLY</span></div>
 </header>
 <main>
@@ -22,7 +22,14 @@ export const template = `
   </aside>
   <section class="workspace" aria-label="Map and prediction results">
     <div class="workspace-top"><div><p class="eyebrow">MAP</p><h2>Region and predicted swaths</h2></div><span class="local-badge">NO SERVER COMPUTATION</span></div>
-    <div class="map-shell"><div id="map" aria-label="Region and predicted swath map" role="region"></div><div class="map-caption"><span class="legend-swatch roi-swatch"></span> Your region <span class="legend-swatch footprint-swatch"></span> Predicted swath <span id="map-hint">Draw or enter a region to begin</span></div></div>
+    <div class="map-shell">
+      <div class="map-toolbar"><div class="segmented" role="group" aria-label="Map view"><button type="button" id="view-2d" aria-pressed="true">2D map</button><button type="button" id="view-3d" aria-pressed="false">3D globe</button></div><button type="button" id="globe-home" hidden>Whole Earth</button><label class="live-toggle"><input type="checkbox" id="live-satellites"> Live satellites</label></div>
+      <p id="globe-status" class="map-view-hint" role="status" hidden></p>
+      <div id="map" class="map-viewport" aria-label="Region and predicted swath map" role="region"></div>
+      <div id="globe" class="map-viewport" aria-label="3D globe with region, predicted swaths and live satellite ground positions" role="region" hidden></div>
+      <div class="map-caption"><span class="legend-swatch roi-swatch"></span> Your region <span class="legend-swatch footprint-swatch"></span> Predicted swath <span id="map-hint">Draw or enter a region to begin</span></div>
+      <section id="live-panel" aria-label="Live satellite positions" hidden><p id="live-status" role="status">Starting live positions…</p><p class="hint">SGP4 estimates at the current time, not telemetry or acquisition evidence. Markers show ground positions; altitude is listed below. Pauses during predictions and while this tab is hidden.</p><p id="live-warning" class="hint" hidden></p><div id="live-list"></div><button type="button" id="retry-live" hidden>Retry live positions</button></section>
+    </div>
     <div id="status-panel" class="status-panel" role="status" aria-live="polite"><span class="status-symbol" id="status-symbol">◎</span><div><strong id="status-title">Ready to calculate</strong><p id="status-detail">Select your region and satellites, then calculate a window.</p><progress id="progress" hidden></progress></div><span class="elapsed" id="elapsed"></span></div>
     <p id="error" class="error" role="alert" hidden></p>
     <div class="results-heading"><div><p class="eyebrow">RESULTS</p><h2>Overpasses <span id="result-count" class="count">—</span></h2></div><span id="outdated" class="outdated" hidden>Settings changed · recalculate</span></div>
@@ -32,7 +39,7 @@ export const template = `
     <div id="csv-wrap" hidden><label class="sr-only" for="csv-preview">CSV preview</label><textarea id="csv-preview" readonly rows="12" spellcheck="false"></textarea></div>
     <div class="download-bar"><span>Download complete calculation</span><div><button type="button" data-download="csv" disabled>↓ CSV</button><button type="button" data-download="geojson" disabled>↓ GeoJSON</button><button type="button" data-download="json" disabled>↓ JSON</button></div><label>Filtered rows<select id="filtered-format"><option value="csv">CSV</option><option value="geojson">GeoJSON</option><option value="json">JSON</option></select></label><button id="download-filtered" type="button" disabled>↓ Download filtered rows</button></div>
     <details class="assumptions"><summary>How to read these predictions</summary><ul id="assumption-list"><li>Swath intersection, imaging eligibility, acquisition plans and available imagery are separate facts.</li><li>ESA plans and imagery are not checked in this website. Missing plans mean unknown acquisition.</li><li>Freshness labels are refresh reminders, not accuracy probabilities. Swath edges and large geographic regions have model limitations.</li></ul></details>
-    <footer>Scientific implementation by <strong>Julian Manning</strong> · <a href="https://github.com/julianManning/eo-overpass-predictor">eo-overpass-predictor</a> · MIT licence <span>Runs in your browser.</span></footer>
+    <footer>Scientific implementation by <strong>Julian Manning</strong> · <a href="https://github.com/julianManning/eo-overpass-predictor">eo-overpass-predictor</a> · MIT licence · <a href="${import.meta.env.BASE_URL}map-licenses.txt">Map licences</a><span>Runs in your browser.</span></footer>
   </section>
 </main>
 <dialog id="mobile-notice" aria-labelledby="mobile-notice-title" aria-describedby="mobile-notice-detail">

@@ -34,5 +34,16 @@ export interface Progress {
   type: 'progress'; id: number; stage: string; label: string;
   completed: number; total: number; elapsed: number;
 }
+export interface PositionsRequest {
+  satellites: string[]; tle_text: string; when_utc: string; orbital_source: string;
+  orbital_sources?: Record<string, string>;
+}
+export interface SatellitePosition {
+  satellite: string; lat: number; lon: number; alt_km: number; ground_speed_kms: number;
+  direction: string; epoch_utc: string; tle_age_days: number;
+  freshness: 'fresh' | 'aged' | 'stale'; source: string;
+}
+export interface PositionsResult { when_utc: string; positions: SatellitePosition[] }
 export type WorkerEvent = Progress | {type: 'ready'; catalogue: Record<string, SatelliteInfo>; version: string; id: number}
-  | {type: 'result'; result: Result; id: number} | {type: 'error'; message: string; id: number};
+  | {type: 'result'; result: Result; id: number} | {type: 'positions'; result: PositionsResult; id: number}
+  | {type: 'error'; message: string; id: number; fatal?: boolean};

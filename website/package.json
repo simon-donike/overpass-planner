@@ -16,7 +16,8 @@
   },
   "dependencies": {
     "leaflet": "1.9.4",
-    "leaflet-draw": "1.0.4"
+    "leaflet-draw": "1.0.4",
+    "maplibre-gl": "6.16.0"
   },
   "devDependencies": {
     "@playwright/test": "1.58.2",

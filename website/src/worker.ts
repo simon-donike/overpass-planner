@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import type { PredictionRequest } from './types';
+import type { PositionsRequest, PredictionRequest } from './types';
 
 // The runtime is a static, pinned build asset rather than an npm-bundled interpreter.
 interface Pyodide {
@@ -11,6 +11,7 @@ interface Pyodide {
 }
 let pyodide: Pyodide | undefined;
 let initialized: Promise<void> | undefined;
+let ready = false;
 
 async function checkedFetch(url: URL): Promise<Response> {
   const response = await fetch(url);
@@ -33,25 +34,32 @@ async function initialize(base: string, id: number) {
   const adapter = await (await checkedFetch(new URL('browser_adapter.py', root))).text();
   pyodide.FS.writeFile('/home/pyodide/browser_adapter.py', adapter);
   const catalogue = await pyodide.runPythonAsync('import browser_adapter\nbrowser_adapter.catalogue_json()');
+  ready = true;
   self.postMessage({type: 'ready', catalogue: JSON.parse(String(catalogue)), version: build.package_version, id});
 }
 
-self.onmessage = async (event: MessageEvent<{type: string; id: number; base: string; request?: PredictionRequest}>) => {
-  const {id, base, request} = event.data;
+type Request = {type: string; id: number; base: string; request?: PredictionRequest | PositionsRequest};
+// Initialization and Python calls must never overlap, even when live tracking is
+// enabled just before a prediction starts. No second interpreter is created.
+let queue = Promise.resolve();
+self.onmessage = (event: MessageEvent<Request>) => { queue = queue.then(() => handle(event.data)); };
+async function handle({type, id, base, request}: Request) {
   try {
     initialized ??= initialize(base, id);
     await initialized;
-    if (event.data.type === 'predict' && request && pyodide) {
+    if (request && pyodide) {
       pyodide.globals.set('request_json', JSON.stringify(request));
       pyodide.globals.set('notify_progress', (stage: string, label: string, completed: number, total: number, elapsed: number) => {
         self.postMessage({type: 'progress', id, stage, label, completed, total, elapsed});
       });
-      const result = await pyodide.runPythonAsync('browser_adapter.run_request_json(request_json, notify_progress)');
-      self.postMessage({type: 'result', id, result: JSON.parse(String(result))});
+      const result = await pyodide.runPythonAsync(type === 'positions'
+        ? 'browser_adapter.positions_json(request_json)'
+        : 'browser_adapter.run_request_json(request_json, notify_progress)');
+      self.postMessage({type: type === 'positions' ? 'positions' : 'result', id, result: JSON.parse(String(result))});
     }
   } catch (error) {
     console.error(error);
     const message = error instanceof Error ? error.message : String(error);
-    self.postMessage({type: 'error', id, message: message.trim().split('\n').at(-1) || message});
+    self.postMessage({type: 'error', id, fatal: !ready, message: message.trim().split('\n').at(-1) || message});
   }
-};
+}

@@ -167,7 +167,6 @@ def prepare(test_data: bool = False) -> None:
         + "\n"
     )
     shutil.copyfile(SITE / "python" / "browser_adapter.py", PUBLIC / "browser_adapter.py")
-    shutil.copyfile(ROOT / "docs" / "assets" / "eo_overpass_logo.png", PUBLIC / "logo.png")
     from eo_overpass_predictor import SATELLITE_CATALOGUE
 
     (PUBLIC / "catalogue.json").write_text(json.dumps(SATELLITE_CATALOGUE, indent=2) + "\n")

@@ -2,7 +2,11 @@
 
 import importlib.util
 import json
+import tempfile
 from pathlib import Path
+
+from eo_overpass_predictor import fetch_tles, satellite_positions
+from eo_overpass_predictor.presentation import json_value
 
 SITE = Path(__file__).resolve().parents[1]
 ROOT = SITE.parent
@@ -74,4 +78,27 @@ for name, overrides in configurations:
 output = SITE / "public/test-data"
 output.mkdir(exist_ok=True, parents=True)
 (output / "references.json").write_text(json.dumps(references, indent=2) + "\n")
+position_references = []
+with tempfile.TemporaryDirectory() as directory:
+    tles = fetch_tles(
+        list(json.loads(adapter.catalogue_json())),
+        tle_text=text,
+        tle_dir=directory,
+        offline=True,
+        verbose=False,
+    )
+    for when in ["2026-10-29T12:34:56Z", "2026-11-30T12:34:56Z"]:
+        request = {
+            "satellites": list(tles),
+            "tle_text": text,
+            "when_utc": when,
+            "orbital_source": "Frozen historical test elements",
+        }
+        position_references.append(
+            {
+                "request": request,
+                "expected": json_value(satellite_positions(tles, when_utc=when).to_dict("records")),
+            }
+        )
+(output / "positions.json").write_text(json.dumps(position_references, indent=2) + "\n")
 print("Generated ephemeral expectations from native Python; existing baselines are unchanged.")
