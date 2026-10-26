@@ -2,6 +2,11 @@ name: Browser planner · GitHub Pages
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_pages:
+        description: Publish to GitHub Pages after validation (optional alternative host)
+        type: boolean
+        default: false
   push:
     paths: ["website/**", "src/**", "pyproject.toml", "uv.lock", "LICENSE", ".github/workflows/website.yml"]
   pull_request:
@@ -52,12 +57,12 @@ jobs:
       - run: npm run build
         working-directory: website
       - uses: actions/upload-pages-artifact@v4
-        if: github.event_name != 'pull_request' && (github.event_name != 'push' || github.ref_name == github.event.repository.default_branch)
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_pages
         with:
           path: website/dist
 
   deploy:
-    if: github.event_name != 'pull_request' && (github.event_name != 'push' || github.ref_name == github.event.repository.default_branch)
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_pages
     needs: build
     runs-on: ubuntu-latest
     permissions:

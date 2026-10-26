@@ -101,8 +101,9 @@ convenient deployment option:
 
 1. Merge the website into the repository's default branch.
 2. Under **Settings → Pages → Build and deployment**, select **GitHub Actions**.
-3. Run **Browser planner · GitHub Pages** manually, or let a default-branch push
-   trigger it. The workflow builds and tests before publishing.
+3. Run **Browser planner · GitHub Pages** manually with **publish_pages** enabled.
+   The workflow builds and tests before publishing. Pushes and pull requests run
+   validation only; they do not publish or change the Cloudflare deployment.
 4. Optionally configure a custom domain in Pages settings.
 
 The workflow runs on code changes or manual dispatch. It contains no schedule,
