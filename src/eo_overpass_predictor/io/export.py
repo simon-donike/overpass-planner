@@ -15,6 +15,7 @@ from shapely.geometry import mapping
 
 from ..core.geometry import resolve_roi_timezone
 from ..core.orbits import SATELLITE_CATALOGUE, _resolve_satellites
+from ..core.sensors import resolve_s1_mode, sensor_config
 from ..presentation import ASSUMPTIONS, describe_pass, json_value
 from ..types import SatelliteSelection, TLERecord
 
@@ -105,6 +106,7 @@ def export_live_tracker_html(
     satellites: SatelliteSelection = None,
     title: str = "Overpass Tracker",
     standalone: bool = True,
+    s1_mode: str | None = None,
 ) -> Path:
     """
     Write a standalone, self-updating live-tracker web page (no Python needed to view it).
@@ -132,6 +134,7 @@ def export_live_tracker_html(
     """
 
     names = _resolve_satellites(satellites) if satellites is not None else list(tles)
+    selected_mode = resolve_s1_mode(passes, s1_mode)
     tz_name = timezone_name or resolve_roi_timezone(roi_gdf, verbose=False)
     sats = [
         {
@@ -141,6 +144,10 @@ def export_live_tracker_html(
             "colour": SATELLITE_CATALOGUE[n]["colour"],
             "swath_km": SATELLITE_CATALOGUE[n]["swath_km"],
             "mission": SATELLITE_CATALOGUE[n]["mission"],
+            "sensor": SATELLITE_CATALOGUE[n].get("sensor"),
+            "footprint_model": SATELLITE_CATALOGUE[n].get("geometry", "optical_nadir"),
+            "geometry": SATELLITE_CATALOGUE[n].get("geometry"),
+            "sensor_config": sensor_config(SATELLITE_CATALOGUE[n]["mission"], selected_mode),
             "epoch": tles[n]["epoch_utc"].strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
         for n in names
@@ -160,9 +167,26 @@ def export_live_tracker_html(
                     "plan": r.get("esa_plan_status") if "esa_plan_status" in r else None,
                     "status": describe_pass(r),
                     "footprint": mapping(r.geometry),
-                    "view_angle_deg": float(r["view_angle_deg"]),
-                    "sun_elevation_deg": float(r["sun_elevation_deg"]),
-                    "edge_margin_km": float(r["edge_margin_km"]),
+                    "view_angle_deg": float(r["view_angle_deg"])
+                    if pd.notna(r.get("view_angle_deg"))
+                    else None,
+                    "sun_elevation_deg": float(r["sun_elevation_deg"])
+                    if pd.notna(r.get("sun_elevation_deg"))
+                    else None,
+                    "edge_margin_km": float(r["edge_margin_km"])
+                    if pd.notna(r.get("edge_margin_km"))
+                    else None,
+                    "mode": r.get("s1_mode", r.get("mode")),
+                    "look_side": r.get("look_side"),
+                    "incidence_angle_deg": float(r["incidence_angle_deg"])
+                    if pd.notna(r.get("incidence_angle_deg"))
+                    else None,
+                    "esa_mode": r.get("esa_mode"),
+                    "esa_polarisation": r.get("esa_polarisation"),
+                    "esa_plan_file": r.get("esa_plan_file"),
+                    "esa_relative_orbit": int(r["esa_relative_orbit"])
+                    if pd.notna(r.get("esa_relative_orbit"))
+                    else None,
                 }
             )
     payload = {

@@ -52,8 +52,16 @@ def main() -> None:
             text=True,
         )
         response = json.loads(result.stdout)
-        assert response["ok"] and response["schema_version"] == "1.0"
+        assert response["ok"] and response["schema_version"] == "2.0"
         assert response["count"] == 1 and response["output"] is None
+        catalogue = subprocess.run(
+            [str(cli), "satellites", "--json"],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        assert len(json.loads(catalogue.stdout)["satellites"]) == 7
         subprocess.run([str(cli), "--help"], cwd=root, check=True)
         subprocess.run(
             [str(cli), "cache", "info", "--cache-dir", str(root / "unused-cache")],

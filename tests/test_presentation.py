@@ -56,6 +56,24 @@ def test_age_relative_to_pass_and_edge_warnings(age, status):
     assert ("tle_age" in codes) == (abs(age) > 7)
 
 
+@pytest.mark.parametrize(
+    "plan, expected", [(None, "unknown"), ("not planned", "not_planned"), ("planned", "planned")]
+)
+def test_sentinel1_status_is_radar_aware(plan, expected):
+    result = describe_pass(
+        {
+            "mission": "Sentinel-1",
+            "esa_plan_status": plan,
+            "imaging_expected": True,
+            "tle_age_days": 1,
+            "edge_margin_km": 0,
+        }
+    )
+    assert result["acquisition"] == expected
+    assert result["imaging_label"] == "Radar imaging eligible"
+    assert not any(w["code"] == "swath_edge" for w in result["warnings"])
+
+
 def test_json_nulls_and_timestamps():
     document = json_value(
         {

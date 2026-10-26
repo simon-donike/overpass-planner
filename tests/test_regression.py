@@ -32,7 +32,8 @@ def test_original_scientific_outputs(case, baseline, results):
     metric_crs = 32731 if case == "latitude_limit" else 32755
     project = Transformer.from_crs(4326, metric_crs, always_xy=True).transform
     for row, expected in zip(actual.to_dict("records"), reference["rows"], strict=True):
-        assert list(row) == list(expected)
+        # Sensor metadata may be added; every original scientific field must remain.
+        assert all(column in row for column in expected)
         for column, value in expected.items():
             if column == "geometry":
                 # 10 cm is negligible beside the 1-second (~7 km) orbit sampling;

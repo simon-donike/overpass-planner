@@ -24,11 +24,12 @@ def test_invalid_satellites(selection):
 
 
 def test_catalogue_mission_selection():
-    assert len(list_satellites()) == 5
+    assert len(list_satellites()) == 7
     assert list_satellites("landsat")["alias"].tolist() == ["L8", "L9"]
     assert len(list_satellites("sentinel-2")) == 3
+    assert list_satellites("Sentinel-1")["alias"].tolist() == ["S1C", "S1D"]
     with pytest.raises(ValueError):
-        list_satellites("Sentinel-1")
+        list_satellites("unknown")
 
 
 @pytest.mark.parametrize(
@@ -82,7 +83,8 @@ def test_prediction_is_independent_of_file_io(tles, tmp_path, monkeypatch):
 def test_result_structure_and_reports(results):
     frame = results["polygon"]
     assert frame["overpass_utc"].is_monotonic_increasing
-    assert set(frame["satellite"]) == set(list_satellites()["satellite"])
+    optical = list_satellites().query("mission != 'Sentinel-1'")
+    assert set(frame["satellite"]) == set(optical["satellite"])
     assert frame["roi_coverage_pct"].between(0, 100).all()
     assert frame["imaging_expected"].all()
     assert len(summarise_overpasses(frame)) == len(frame)

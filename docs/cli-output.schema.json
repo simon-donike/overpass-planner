@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "eo-overpass CLI responses, version 1.0",
+  "title": "eo-overpass CLI responses, version 2.0",
   "description": "One JSON response on stdout for supported commands with --json. Additional fields may be added compatibly.",
   "oneOf": [
     {
@@ -21,7 +21,7 @@
       ],
       "properties": {
         "schema_version": {
-          "const": "1.0"
+          "const": "2.0"
         },
         "ok": {
           "const": true
@@ -89,7 +89,7 @@
       ],
       "properties": {
         "schema_version": {
-          "const": "1.0"
+          "const": "2.0"
         },
         "ok": {
           "const": true
@@ -160,7 +160,7 @@
       ],
       "properties": {
         "schema_version": {
-          "const": "1.0"
+          "const": "2.0"
         },
         "ok": {
           "const": true
@@ -191,7 +191,7 @@
       ],
       "properties": {
         "schema_version": {
-          "const": "1.0"
+          "const": "2.0"
         },
         "ok": {
           "const": true
@@ -220,7 +220,7 @@
       ],
       "properties": {
         "schema_version": {
-          "const": "1.0"
+          "const": "2.0"
         },
         "ok": {
           "const": false
@@ -297,6 +297,7 @@
             "not_checked",
             "planned_nominal",
             "planned_other",
+            "planned",
             "not_planned"
           ]
         },
@@ -361,6 +362,8 @@
         "fine_step_s",
         "plans",
         "fetch_plans"
+        ,"s1_mode"
+        ,"imaging_only"
       ],
       "properties": {
         "roi_name": {
@@ -415,6 +418,12 @@
         },
         "fetch_plans": {
           "type": "boolean"
+        },
+        "s1_mode": {
+          "enum": ["IW", "EW"]
+        },
+        "imaging_only": {
+          "type": "boolean"
         }
       }
     },
@@ -446,6 +455,9 @@
         "timezone",
         "utc_offset",
         "roi_side_of_track",
+        "s1_mode",
+        "look_side",
+        "incidence_angle_deg",
         "note",
         "geometry",
         "status"
@@ -536,6 +548,25 @@
         "roi_side_of_track": {
           "type": "string"
         },
+        "s1_mode": {
+          "type": ["string", "null"],
+          "enum": ["IW", "EW", null]
+        },
+        "look_side": {
+          "type": ["string", "null"]
+        },
+        "incidence_angle_deg": {
+          "type": ["number", "null"]
+        },
+        "mode": {
+          "type": ["string", "null"]
+        },
+        "near_look_angle_deg": {
+          "type": ["number", "null"]
+        },
+        "far_look_angle_deg": {
+          "type": ["number", "null"]
+        },
         "note": {
           "type": "string"
         },
@@ -562,6 +593,15 @@
             "integer",
             "null"
           ]
+        },
+        "esa_mode": {
+          "type": ["string", "null"]
+        },
+        "esa_polarisation": {
+          "type": ["string", "null"]
+        },
+        "esa_plan_file": {
+          "type": ["string", "null"]
         }
       }
     },

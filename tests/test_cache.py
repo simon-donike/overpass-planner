@@ -213,7 +213,13 @@ def test_no_cache_and_directory_override_conflict(tmp_path):
 def test_tle_cache_keeps_five_stable_filenames(tmp_path):
     text = (FIXTURES / "satellites.tle").read_text()
     for _ in range(2):
-        api.fetch_tles(tle_dir=tmp_path, tle_text=text, offline=True, verbose=False)
+        api.fetch_tles(
+            satellites=["LS", "S2"],
+            tle_dir=tmp_path,
+            tle_text=text,
+            offline=True,
+            verbose=False,
+        )
     assert len(list(tmp_path.iterdir())) == 5
     assert all(path.suffix == ".tle" for path in tmp_path.iterdir())
 

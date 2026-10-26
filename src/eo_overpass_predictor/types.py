@@ -2,7 +2,7 @@
 
 from collections.abc import Iterable
 from datetime import date, datetime
-from typing import TypeAlias, TypedDict
+from typing import NotRequired, TypeAlias, TypedDict
 
 import pandas as pd
 
@@ -17,6 +17,8 @@ class SatelliteInfo(TypedDict):
     lat_limits: tuple[float, float]
     colour: str
     note: str
+    geometry: NotRequired[str]
+    modes: NotRequired[tuple[str, ...]]
 
 
 class RawTLE(TypedDict):

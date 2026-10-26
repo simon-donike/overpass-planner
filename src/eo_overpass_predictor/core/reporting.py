@@ -81,6 +81,18 @@ def summarise_overpasses(passes: gpd.GeoDataFrame) -> pd.DataFrame:
             "Expected": passes["imaging_expected"].map({True: "✔", False: "✘"}),
         }
     )
+    if "s1_mode" in passes:
+        df["Mode"] = passes["s1_mode"]
+    if "look_side" in passes:
+        df["Look side"] = passes["look_side"]
+    if "incidence_angle_deg" in passes:
+        df["Incidence angle °"] = passes["incidence_angle_deg"]
+    for column, label in (
+        ("esa_polarisation", "ESA polarisation"),
+        ("esa_relative_orbit", "ESA relative orbit"),
+    ):
+        if column in passes:
+            df[label] = passes[column]
     if "esa_plan_status" in passes:
         df["ESA plan"] = passes["esa_plan_status"]
     statuses = [describe_pass(row) for _, row in passes.iterrows()]

@@ -32,7 +32,7 @@ def next_args():
 
 def response(result):
     document = json.loads(result.stdout)
-    assert document["schema_version"] == "1.0"
+    assert document["schema_version"] == "2.0"
     # A single strict JSON value, never Python's NaN/Infinity extensions.
     json.dumps(document, allow_nan=False)
     # jsonschema is supplied by the development notebook tooling (nbformat).

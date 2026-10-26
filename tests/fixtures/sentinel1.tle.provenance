@@ -1,0 +1,8 @@
+Source: CelesTrak GP API
+URLs:
+  https://celestrak.org/NORAD/elements/gp.php?CATNR=62261&FORMAT=TLE
+  https://celestrak.org/NORAD/elements/gp.php?CATNR=66315&FORMAT=TLE
+Retrieved: 2026-10-26
+Fixture SHA-256: 9d7a6b5ca93f1bd1562c695eae7f32f2a272ef77f70f6b6a26e24f94b65cba6a
+TLE epochs: Sentinel-1C 2026-10-26T07:26:03.895872Z; Sentinel-1D 2026-10-25T17:26:58.510912Z
+Purpose: frozen, historical Sentinel-1 geometry tests; these elements are not current data.

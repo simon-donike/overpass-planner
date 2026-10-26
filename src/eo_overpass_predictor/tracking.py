@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+from skyfield.framelib import itrs
 
 from .core.geometry import _roi_anchor, resolve_roi_timezone
 from .core.orbits import (
@@ -17,10 +18,12 @@ from .core.orbits import (
     _build_satellite,
     _propagate,
     _resolve_satellites,
+    _ts,
     satellite_positions,
     subsolar_point,
 )
 from .core.reporting import next_overpasses
+from .core.sensors import resolve_s1_mode, sentinel1_footprint_edges
 from .types import SatelliteSelection, TLERecord
 
 
@@ -71,6 +74,7 @@ class LiveTracker:
         timezone_name=None,
         zoom=3,
         height: str = "620px",
+        s1_mode: str | None = None,
     ) -> None:
         try:
             import ipyleaflet as L
@@ -86,6 +90,7 @@ class LiveTracker:
         self.sats = {n: _build_satellite(n, tles[n]) for n in self.names}
         self.roi = roi_gdf.geometry.iloc[0]
         self.passes = passes
+        self.s1_mode = resolve_s1_mode(passes, s1_mode)
         self.refresh_s = refresh_s
         self.past_min, self.future_min = track_minutes
         self.tz_name = timezone_name or resolve_roi_timezone(roi_gdf, verbose=False)
@@ -143,7 +148,7 @@ class LiveTracker:
     # ---------------------------------------------------------------------------------------
     def _ground_track(self, name, now):
         off = np.arange(-self.past_min * 60, self.future_min * 60 + 1, 30.0)
-        lat, lon, _ = _propagate(self.sats[name], now, off)
+        lat, lon, alt = _propagate(self.sats[name], now, off)
         k = int(np.searchsorted(off, 0))
         return (
             _split_antimeridian(lat[: k + 1], lon[: k + 1]),
@@ -152,12 +157,35 @@ class LiveTracker:
 
     def _current_swath(self, name, now, minutes=2.5):
         off = np.arange(-minutes * 60, minutes * 60 + 1, 10.0)
-        lat, lon, _ = _propagate(self.sats[name], now, off)
+        lat, lon, alt = _propagate(self.sats[name], now, off)
         az, _, _ = GEOD.inv(lon[:-1], lat[:-1], lon[1:], lat[1:])
         az = np.append(az, az[-1])
-        half = SATELLITE_CATALOGUE[name]["swath_km"] * 500.0
-        llon, llat, _ = GEOD.fwd(lon, lat, az - 90, np.full_like(lon, half))
-        rlon, rlat, _ = GEOD.fwd(lon, lat, az + 90, np.full_like(lon, half))
+        cat = SATELLITE_CATALOGUE[name]
+        if cat.get("geometry") == "right_looking_sar":
+            ts = _ts().utc(
+                now.year,
+                now.month,
+                now.day,
+                now.hour,
+                now.minute,
+                now.second + now.microsecond / 1e6 + off,
+            )
+            states = self.sats[name].at(ts)
+            ecef, velocity = states.frame_xyz_and_velocity(itrs)
+            ecef = ecef.km.T
+            vel = velocity.km_per_s.T
+            edges = [
+                sentinel1_footprint_edges(ecef[i], vel[i], float(alt[i]), self.s1_mode)
+                for i in range(len(lon))
+            ]
+            llon = np.asarray([e[0][0] for e in edges])
+            llat = np.asarray([e[0][1] for e in edges])
+            rlon = np.asarray([e[1][0] for e in edges])
+            rlat = np.asarray([e[1][1] for e in edges])
+        else:
+            half = cat["swath_km"] * 500.0
+            llon, llat, _ = GEOD.fwd(lon, lat, az - 90, np.full_like(lon, half))
+            rlon, rlat, _ = GEOD.fwd(lon, lat, az + 90, np.full_like(lon, half))
         ring_lon = np.concatenate([llon, rlon[::-1]])
         if ring_lon.max() - ring_lon.min() > 180:  # skip drawing across the antimeridian
             return []
@@ -251,6 +279,7 @@ def live_tracker(
     zoom: int = 3,
     height: str = "620px",
     autostart: bool = True,
+    s1_mode: str | None = None,
 ) -> LiveTracker:
     """
     Create (and by default start) the ipyleaflet live tracker in a notebook cell.
@@ -282,6 +311,7 @@ def live_tracker(
         timezone_name=timezone_name,
         zoom=zoom,
         height=height,
+        s1_mode=s1_mode,
     )
     if autostart:
         tr.start()
