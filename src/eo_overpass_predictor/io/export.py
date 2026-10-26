@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from html import escape
 from importlib.resources import files
 from pathlib import Path
@@ -17,6 +18,15 @@ from ..core.orbits import SATELLITE_CATALOGUE, _resolve_satellites
 from ..core.sensors import resolve_s1_mode, sensor_config
 from ..presentation import ASSUMPTIONS, describe_pass, json_value
 from ..types import SatelliteSelection, TLERecord
+
+
+def _export_notice(message: str) -> None:
+    """Keep status messages from failing exports on legacy redirected consoles."""
+    try:
+        print(message)
+    except UnicodeEncodeError:
+        encoding = getattr(sys.stdout, "encoding", None) or "ascii"
+        print(message.encode(encoding, errors="backslashreplace").decode(encoding))
 
 
 def export_overpass_csv(
@@ -70,7 +80,7 @@ def export_overpass_csv(
         file_name = f"overpasses_{roi}{span}.csv"
     path = out_dir / file_name
     df.to_csv(path, index=False)
-    print(f"💾 {len(df)} overpass(es) written to {path}")
+    _export_notice(f"💾 {len(df)} overpass(es) written to {path}")
     return path
 
 
@@ -83,7 +93,7 @@ def export_overpass_footprints(passes: gpd.GeoDataFrame, path: str | Path) -> Pa
         if pd.api.types.is_datetime64_any_dtype(g[c]):
             g[c] = g[c].astype(str)
     g.to_file(path)
-    print(f"💾 {len(g)} footprint(s) written to {path}")
+    _export_notice(f"💾 {len(g)} footprint(s) written to {path}")
     return path
 
 
@@ -214,5 +224,5 @@ def export_live_tracker_html(
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(html, encoding="utf-8")
-    print(f"🌐 Live tracker written to {out_path} — open it in any browser.")
+    _export_notice(f"🌐 Live tracker written to {out_path} — open it in any browser.")
     return out_path

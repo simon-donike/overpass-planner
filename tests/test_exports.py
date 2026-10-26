@@ -1,5 +1,7 @@
+import io
 import json
 import re
+import sys
 
 import geopandas as gpd
 import pandas as pd
@@ -11,6 +13,29 @@ from eo_overpass_predictor import (
     export_overpass_footprints,
     load_roi,
 )
+
+
+def test_exports_work_with_legacy_console_encoding(results, tles, tmp_path, monkeypatch):
+    destination = tmp_path / "東京"
+    destination.mkdir()
+    output = io.BytesIO()
+    console = io.TextIOWrapper(output, encoding="cp1252")
+    with monkeypatch.context() as context:
+        context.setattr(sys, "stdout", console)
+        csv_path = export_overpass_csv(results["polygon"], destination, file_name="report.csv")
+        geometry_path = export_overpass_footprints(
+            results["polygon"], destination / "footprints.geojson"
+        )
+        html_path = export_live_tracker_html(
+            tles,
+            load_roi((144.96, -37.82)),
+            destination / "tracker.html",
+            passes=results["polygon"],
+        )
+        console.flush()
+    assert all(path.is_file() for path in (csv_path, geometry_path, html_path))
+    assert len(pd.read_csv(csv_path)) == len(results["polygon"])
+    assert "written to" in output.getvalue().decode("cp1252")
 
 
 @pytest.mark.parametrize("case", ["polygon", "empty"])
