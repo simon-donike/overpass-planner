@@ -193,3 +193,18 @@ test('mobile globe controls, keyboard navigation and live list fit the viewport'
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({path: 'test-results/globe-mobile.png', fullPage: true});
 });
+
+test('Earth hides far-side satellite markers and the list brings them into view', async ({page}) => {
+  await mockPython(page); await page.goto('./');
+  await page.getByRole('button', {name: '3D globe', exact: true}).click();
+  await expect(page.locator('#globe-status')).toContainText('Drag to rotate');
+  await page.getByLabel('Live satellites', {exact: true}).check();
+  // All mocked ground positions are near Australia, behind the initial view
+  // centered on Africa. They must not appear as positions on the near side.
+  await expect(page.locator('#globe .maplibregl-marker-covered')).toHaveCount(7);
+  await expect(page.locator('#globe .live-marker').first()).toBeHidden();
+  const satellite = page.locator('#globe .live-marker[aria-label^="SENTINEL-2B"]');
+  await page.getByRole('button', {name: 'Locate SENTINEL-2B', exact: true}).click();
+  await expect(satellite).toBeVisible();
+  await expect(satellite).not.toHaveClass(/maplibregl-marker-covered/);
+});
