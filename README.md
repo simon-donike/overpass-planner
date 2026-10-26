@@ -146,13 +146,30 @@ A fully offline command using the bundled *historical regression* inputs:
 
 ```bash
 uv run eo-overpass predict \
-  --roi examples/data/Port_Phillip_Bay_Extent_EPSG_32755.shp \
+  --roi examples/data/port_phillip_bay.geojson \
   --start 2026-10-26 --end 2026-10-27 --satellite S2B \
   --tle-file tests/fixtures/satellites.tle --offline \
   --cache-dir DATA --output OUTPUT/offline-example.csv
 ```
 
 The fixed inputs demonstrate reproducibility; do not use them as current orbital elements. Sample inputs are versioned in `examples/data/`, historical sample reports in `examples/outputs/`, and documentation images in `docs/assets/`. Local `DATA/` caches and `OUTPUT/` reports are created as needed and ignored by Git. The demonstration notebooks intentionally use their configured workspace's `DATA/TLE`, `DATA/KML` and `OUTPUT` directories; these explicit workspace paths are outside automatic cache retention.
+
+## Example regions
+
+Each sample is a single GeoJSON file with WGS84 longitude/latitude coordinates:
+
+| Region | Sample ROI | Local time zone |
+|---|---|---|
+| Port Phillip Bay, Australia | [port_phillip_bay.geojson](examples/data/port_phillip_bay.geojson) | `Australia/Melbourne` |
+| Madrid, Spain | [madrid.geojson](examples/data/madrid.geojson) | `Europe/Madrid` |
+| Austin, Texas, USA | [austin_tx.geojson](examples/data/austin_tx.geojson) | `America/Chicago` |
+
+These are illustrative rectangular study areas. Port Phillip Bay preserves the original sample extent; the city examples are approximate areas around each city, not administrative boundaries. In either prediction notebook, set `ROI_FILE` to the desired filename. The CLI accepts the same files:
+
+```bash
+uv run eo-overpass next --roi examples/data/madrid.geojson --satellite S2
+uv run eo-overpass next --roi examples/data/austin_tx.geojson --satellite LS
+```
 
 ## Supported instruments and scientific assumptions
 

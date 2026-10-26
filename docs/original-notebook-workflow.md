@@ -1,4 +1,4 @@
-> Historical documentation from upstream 1.0.0 (October 2026). Mission-status statements and setup commands below describe that release; use the main README for current package instructions. The directory tree below describes the original release: sample inputs now live in `examples/data/`, images in `docs/assets/`, and the sample CSV in `examples/outputs/`. The legacy `Tools/` files remain available in Git history.
+> Historical documentation from upstream 1.0.0 (October 2026). Mission-status statements and setup commands below describe that release; use the main README for current package instructions. The directory tree below describes the original release: sample inputs are now GeoJSON files in `examples/data/`, images in `docs/assets/`, and the sample CSV in `examples/outputs/`. The legacy `Tools/` files remain available in Git history.
 
 # 🧑‍💻 eo-overpass-predictor
 
