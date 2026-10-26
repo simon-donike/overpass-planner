@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic parser/matching fixture; not an ESA acquisition claim. -->
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+<name>Sentinel-2 plan from 20261026T000000 to 20261110T000000</name>
+<Folder><name>S2B</name><Folder><name>NOMINAL</name><Placemark>
+<ExtendedData>
+<Data name="ID"><value>synthetic-datatake</value></Data>
+<Data name="Mode"><value>NOMINAL</value></Data>
+<Data name="ObservationTimeStart"><value>2026-10-26T00:20:00Z</value></Data>
+<Data name="ObservationTimeStop"><value>2026-10-26T00:30:00Z</value></Data>
+<Data name="OrbitAbsolute"><value>1</value></Data>
+<Data name="OrbitRelative"><value>1</value></Data>
+</ExtendedData>
+<Polygon><outerBoundaryIs><LinearRing><coordinates>143,-39 146,-39 146,-37 143,-37 143,-39</coordinates></LinearRing></outerBoundaryIs></Polygon>
+</Placemark></Folder></Folder>
+</Document></kml>

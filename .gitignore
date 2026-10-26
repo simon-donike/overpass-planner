@@ -1,6 +1,8 @@
 # Generated outputs
 OUTPUT/*
 !OUTPUT/.gitkeep
+playground
+.vscode
 
 # Cached orbital elements and ESA plans (refreshed at run time)
 DATA/TLE/*
@@ -12,3 +14,14 @@ DATA/KML/*
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
+
+# Package development
+.venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
