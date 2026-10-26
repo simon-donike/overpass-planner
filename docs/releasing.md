@@ -26,4 +26,5 @@ If the publishing repository differs, configure its actual owner/repository rath
 4. `release.yml` runs CI, rejects a non-stable or mismatched tag, builds and validates distributions, then publishes the retained build artifacts through the `pypi` environment after its configured approval checks.
 5. Verify the uploaded distributions and CLI from a clean PyPI installation. Publishing this package does not itself create a GitHub release or update Zenodo metadata.
 
-Normal branch pushes, pull requests and development versions cannot trigger publication. GitHub Actions runs and non-Linux checks need execution on GitHub; they cannot be certified solely by local tests.
+Normal branch pushes, pull requests and development versions cannot trigger publication. Normal CI runs one Ubuntu test job with Python 3.12. Formatting, typing, distribution
+validation and other-platform checks can be run manually before release.

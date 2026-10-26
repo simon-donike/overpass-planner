@@ -38,6 +38,7 @@ test.beforeEach(async ({page}) => {
 });
 
 async function coordinates(page: Page) {
+  if (await page.locator('#mobile-notice').isVisible()) await page.getByRole('button', {name: 'Continue on this device'}).click();
   await page.getByRole('button', {name: 'Coordinates', exact: true}).click();
   await page.getByLabel('Longitude', {exact: true}).fill('144.96');
   await page.getByLabel('Latitude', {exact: true}).fill('-37.82');
@@ -86,6 +87,84 @@ test('coordinates, options, results, filters and complete/filtered exports', asy
   await page.getByLabel('Minimum coverage').fill('80');
   await expect(page.locator('#outdated')).toBeVisible();
   await page.screenshot({path: 'test-results/planner-desktop.png', fullPage: true});
+});
+
+test.describe('Start time in the user timezone', () => {
+  test.use({timezoneId: 'Europe/Madrid'});
+
+  test('UTC/local switches preserve the instant and do not make completed results stale', async ({page}) => {
+    await mockWorker(page); await page.goto('./'); await coordinates(page);
+    await page.getByLabel('Start time', {exact: true}).fill('2026-07-05T12:00');
+    await page.getByRole('button', {name: 'Local time', exact: true}).click();
+    await expect(page.getByLabel('Start time', {exact: true})).toHaveValue('2026-07-05T14:00');
+    await expect(page.locator('#start-time-hint')).toContainText('Europe/Madrid · UTC+02:00');
+    await page.getByRole('button', {name: 'Calculate overpasses'}).click();
+    await expect(page.locator('#status-title')).toHaveText('Calculation complete');
+    expect(await page.evaluate(() => (window as any).__requests[0].request.start_utc)).toBe('2026-07-05T12:00:00.000Z');
+    await page.getByRole('button', {name: 'UTC', exact: true}).click();
+    await expect(page.getByLabel('Start time', {exact: true})).toHaveValue('2026-07-05T12:00');
+    await expect(page.locator('#outdated')).toBeHidden();
+    await page.getByLabel('Start time', {exact: true}).fill('2026-01-15T23:30');
+    await page.getByRole('button', {name: 'Local time', exact: true}).click();
+    await expect(page.getByLabel('Start time', {exact: true})).toHaveValue('2026-01-16T00:30');
+    await expect(page.locator('#start-time-hint')).toContainText('UTC+01:00');
+    await expect(page.locator('#outdated')).toBeVisible();
+  });
+
+  test('daylight-saving gaps are rejected and repeated hours preserve an explicit UTC instant', async ({page}) => {
+    await mockWorker(page); await page.goto('./'); await coordinates(page);
+    // The later occurrence of 02:30 in Madrid must survive both display switches.
+    await page.getByLabel('Start time', {exact: true}).fill('2026-10-25T01:30');
+    await page.getByRole('button', {name: 'Local time', exact: true}).click();
+    await expect(page.getByLabel('Start time', {exact: true})).toHaveValue('2026-10-25T02:30');
+    await expect(page.locator('#start-time-hint')).toContainText('occurs twice');
+    await expect(page.locator('#start-time-hint')).toContainText('UTC+01:00');
+    await page.getByRole('button', {name: 'Calculate overpasses'}).click();
+    await expect(page.locator('#status-title')).toHaveText('Calculation complete');
+    expect(await page.evaluate(() => (window as any).__requests[0].request.start_utc)).toBe('2026-10-25T01:30:00.000Z');
+    await page.getByRole('button', {name: 'UTC', exact: true}).click();
+    await expect(page.getByLabel('Start time', {exact: true})).toHaveValue('2026-10-25T01:30');
+    await page.getByRole('button', {name: 'Local time', exact: true}).click();
+    await page.getByLabel('Start time', {exact: true}).fill('2026-03-29T02:30');
+    await page.getByRole('button', {name: 'Calculate overpasses'}).click();
+    await expect(page.locator('#error')).toContainText('This local time does not exist');
+    expect(await page.evaluate(() => (window as any).__requests.length)).toBe(1);
+    // UTC is still selectable when a local wall time is invalid.
+    await page.getByRole('button', {name: 'UTC', exact: true}).click();
+    await page.getByRole('button', {name: 'Calculate overpasses'}).click();
+    await expect(page.locator('#status-title')).toHaveText('Calculation complete');
+    expect(await page.evaluate(() => (window as any).__requests[1].request.start_utc)).toBe('2026-03-29T02:30:00.000Z');
+  });
+});
+
+test('mobile usage notice supports click-away, Escape, explicit dismissal and per-tab persistence', async ({page}) => {
+  await page.setViewportSize({width: 390, height: 844});
+  await page.goto('./');
+  const notice = page.getByRole('dialog', {name: 'High network and CPU usage'});
+  await expect(notice).toBeVisible();
+  await page.getByRole('heading', {name: 'High network and CPU usage'}).click();
+  await expect(notice).toBeVisible();
+  await page.mouse.click(8, 8);
+  await expect(notice).toBeHidden();
+  await page.reload();
+  await expect(notice).toBeHidden();
+  await page.evaluate(() => sessionStorage.removeItem('overpass.mobile-notice.seen'));
+  await page.reload(); await expect(notice).toBeVisible();
+  await page.keyboard.press('Escape'); await expect(notice).toBeHidden();
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('overpass.mobile-notice.seen'))).toBe('1');
+  await page.evaluate(() => sessionStorage.removeItem('overpass.mobile-notice.seen'));
+  await page.reload(); await expect(notice).toBeVisible();
+  await page.getByRole('button', {name: 'Continue on this device'}).click();
+  await expect(notice).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('package logo loads in the header and is configured as the browser icon', async ({page}) => {
+  await page.goto('./');
+  await expect(page.locator('.brand-logo')).toBeVisible();
+  await expect.poll(() => page.locator('.brand-logo').evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+  await expect(page.locator('link[rel=icon]')).toHaveAttribute('href', './logo.png');
+  await expect(page.locator('#mobile-notice')).toBeHidden();
 });
 
 test('point, rectangle and polygon drawing, editing, deletion and keyboard controls', async ({page}) => {

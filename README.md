@@ -265,7 +265,7 @@ uv run pre-commit install
 
 Plain `uv sync` installs base and development dependencies. Optional-feature tests skip when their extras are absent; use `--all-extras` for the complete suite. Tests use fixed, sourced TLEs, fixed dates and mocked HTTP services, with no live data dependency. Notebook tests start local Jupyter kernels and therefore need local socket permissions. Distribution validation installs dependencies first, then checks the installed API and CLI offline outside the checkout. `uv build` builds the wheel from its source distribution.
 
-[Regression provenance](tests/fixtures/README.md) explains reference generation, versions and tolerances. Updating references requires review, not simply accepting changed outputs. CI covers Python 3.11–3.14 on Linux and installation checks on Windows/macOS. [Release instructions](docs/releasing.md) describe the separate tag-only PyPI workflow; normal pushes and pull requests do not publish.
+[Regression provenance](tests/fixtures/README.md) explains reference generation, versions and tolerances. Updating references requires review, not simply accepting changed outputs. CI runs one Ubuntu test job with Python 3.12. Formatting, typing and distribution checks can be run locally. [Release instructions](docs/releasing.md) describe the separate tag-only PyPI workflow; normal pushes and pull requests do not publish.
 
 ## Citation, attribution and license
 
