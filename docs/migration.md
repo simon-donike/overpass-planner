@@ -6,10 +6,14 @@ Use `uv sync --extra notebooks` and `uv run --extra notebooks jupyter lab` from 
 
 Repository discovery supports launching from the root or notebook directory. Set `EO_OVERPASS_WORKSPACE` to override the directory containing `DATA/`; notebooks explicitly use its `DATA/TLE`, `DATA/KML`, sample `DATA/SHP` and `OUTPUT` locations. Interactive outputs were cleared to avoid carrying stale forecasts. Scientific markdown, the sample shapefile, `Example/` assets and the original CSV are preserved.
 
-API names and scientific arguments remain. Default API caches have moved from working-directory `DATA/TLE` and `DATA/KML` to OS user cache directories. Supply `tle_dir` and `plan_dir` explicitly to reuse an existing cache. CSV and HTML writer defaults still use `OUTPUT/`.
+API names and scientific arguments remain. Default API caches have moved from working-directory `DATA/TLE` and `DATA/KML` to OS user cache directories. Supply `tle_dir` and `plan_dir` explicitly to reuse an existing cache. CSV and HTML writer defaults still use `OUTPUT/`; CLI output paths are always required.
 
 New validation rejects empty selections, malformed or mismatched TLE records, invalid dates, nonfinite/invalid step sizes, reversed bounding boxes, invalid coordinates and negative buffers. Empty predictions now have typed time/numeric columns and can be exported and plotted. GeoJSON mappings and explicit offline retrieval are additions. Algorithmic limitations, sampling, formulas, output rounding and scientific assumptions are unchanged.
+
+Satellite selections now accept `S2` (all Sentinel-2) and `LS` (all Landsat), as well as lists after one CLI option: `--satellite S2B S2C`. Comma-separated selections and the original repeated-option syntax remain supported. Overlapping group/member selections are deduplicated, preventing duplicate calculations or prediction rows.
 
 The HTML template and coastline data moved into installed package resources. Exported tracker behavior is preserved, with escaped page titles. Folium, Matplotlib and widget libraries are optional and loaded on demand.
 
 The citation file deliberately retains the original archived release's version/date/DOI, independently of package version `1.1.0.dev0`. See [historical scientific documentation](original-notebook-workflow.md) for the original validation observations; packaging regression checks establish code parity, not new observational accuracy claims.
+
+The CLI adds `--no-cache` for temporary downloads and `cache info` / `cache clear` for download management. Default ESA downloads now have 30-day / 50 MiB retention after online retrieval, protecting the current request's files. Explicit `plan_dir`, `--cache-dir` and notebook workspace directories retain user-managed lifetimes. TLE stale/offline fallback and explicit output locations are unchanged.
