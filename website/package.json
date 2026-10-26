@@ -1,0 +1,34 @@
+{
+  "name": "hyperalis-overpass",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "check": "tsc --noEmit",
+    "test": "playwright test",
+    "prepare:python": "uv run --project .. python scripts/prepare.py",
+    "test:prepare": "uv run --project .. python tests/prepare_reference.py",
+    "deploy": "npm run build && wrangler deploy",
+    "deploy:check": "wrangler deploy --dry-run"
+  },
+  "dependencies": {
+    "leaflet": "1.9.4",
+    "leaflet-draw": "1.0.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.58.2",
+    "@types/geojson": "7946.0.16",
+    "@types/leaflet": "1.9.21",
+    "@types/leaflet-draw": "1.0.13",
+    "@types/node": "22.19.15",
+    "typescript": "5.9.3",
+    "vite": "6.4.5",
+    "wrangler": "4.153.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

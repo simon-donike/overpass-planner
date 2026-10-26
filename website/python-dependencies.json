@@ -1,0 +1,88 @@
+{
+  "pyodide": "314.0.7",
+  "runtime_files": {
+    "pyodide.mjs": "6f1d60f7bf529beb300f0f47983c921d3982363640ba20af0e38efdddbc66109",
+    "pyodide.asm.mjs": "f7cdc8ece80678ceb712f8e65ebe6d3a83203a180c399865f49612a051693635",
+    "pyodide.asm.wasm": "cc36e3cab04fdfc9a63ff13eb52eae2b911bf46c025cc7b281f394bd3de1d5e6",
+    "python_stdlib.zip": "fa1957e5777068fc4f7437f96d860ae2fbe9c19732ba06c84e004ec16dd7dd7a",
+    "pyodide-lock.json": "5dc2fc119108bc148c7457dc86e7675b5c87e1cafd420b9c34c1eaef7b36c010"
+  },
+  "packages": [
+    "micropip",
+    "geopandas",
+    "h3",
+    "cffi",
+    "requests",
+    "typing-extensions",
+    "rich"
+  ],
+  "wheels": [
+    {
+      "name": "sgp4",
+      "version": "2.27",
+      "sha256": "5f3f5716649988b638fbe7fcda592830e0956f548ca273b93cfa5f75917b9087"
+    },
+    {
+      "name": "skyfield",
+      "version": "1.55",
+      "sha256": "9f98964855067460c94aa81a337194136f4a97a62ba8bbbfac1b8556f2b66ad4"
+    },
+    {
+      "name": "jplephem",
+      "version": "2.23",
+      "sha256": "66110814810b0b30213bdd058a85a41bedbc030bb8a365c85088674fe02546cf"
+    },
+    {
+      "name": "flatbuffers",
+      "version": "25.2.10",
+      "sha256": "ebba5f4d5ea615af3f7fd70fc310636fbb2bbd1f566ac0a23d98dd412de50051"
+    },
+    {
+      "name": "tzdata",
+      "version": "2026.2",
+      "sha256": "bbe9af844f658da81a5f95019480da3a89415801f6cc966806612cc7169bffe7"
+    },
+    {
+      "name": "platformdirs",
+      "version": "4.5.1",
+      "sha256": "d03afa3963c806a9bed9d5125c8f4cb2fdaf74a55ab60e5d59b3fde758104d31"
+    },
+    {
+      "name": "typer",
+      "version": "0.16.1",
+      "sha256": "90ee01cb02d9b8395ae21ee3368421faf21fa138cb2a541ed369c08cec5237c9"
+    },
+    {
+      "name": "shellingham",
+      "version": "1.5.4",
+      "sha256": "7ecfff8f2fd72616f7481040475a65b2bf8af90a56c89140852d1120324e8686"
+    },
+    {
+      "name": "timezonefinder-data",
+      "version": "3.2026.3.post1",
+      "sha256": "d71b3814362e69cb208f8d30249efe2fa0d2cd55579679c5ae1727cd38840606"
+    }
+  ],
+  "source_wheels": [
+    {
+      "name": "timezonefinder",
+      "version": "9.0.0",
+      "sha256": "c21c47f1463320eda57c4cbb5b80e875b80e64d6b78e73477e0f8bdc1a112c04"
+    }
+  ],
+  "timezone_dataset": {
+    "tolerance_degrees": 0.01,
+    "version_suffix": "overpass.1",
+    "compiler_url": "https://codeload.github.com/jannikmi/timezonefinder/tar.gz/refs/tags/9.0.0",
+    "compiler_sha256": "1bc006c3b6b154b836cfdd2e048a5e93062714965ecd80ca6ed7f7906cb80339",
+    "build_dependencies": [
+      "pydantic==2.12.5",
+      "pydantic-core==2.41.5",
+      "annotated-types==0.8.0",
+      "typing-extensions==4.16.0",
+      "typing-inspection==0.4.4",
+      "numba==0.68.0",
+      "llvmlite==0.50.0"
+    ]
+  }
+}

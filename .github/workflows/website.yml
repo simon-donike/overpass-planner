@@ -1,0 +1,77 @@
+name: Browser planner · GitHub Pages
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_pages:
+        description: Publish to GitHub Pages after validation (optional alternative host)
+        type: boolean
+        default: false
+  push:
+    paths: ["website/**", "src/**", "pyproject.toml", "uv.lock", "LICENSE", ".github/workflows/website.yml"]
+  pull_request:
+    paths: ["website/**", "src/**", "pyproject.toml", "uv.lock", "LICENSE", ".github/workflows/website.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: website-${{ github.event_name == 'pull_request' && github.ref || 'pages' }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.11.24"
+          python-version: "3.14"
+          enable-cache: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: uv sync --locked --all-extras
+      - uses: actions/cache@v4
+        with:
+          path: |
+            website/.cache
+            website/public/runtime
+          key: browser-python-${{ runner.os }}-${{ hashFiles('website/python-dependencies.json') }}
+      - run: uv run python website/scripts/prepare.py --test-data
+      - run: uv run python website/tests/prepare_reference.py
+      - run: uv run pytest website/tests/test_adapter.py
+      - run: npm ci
+        working-directory: website
+      - run: npx playwright install --with-deps chromium
+        working-directory: website
+      - run: npm run check
+        working-directory: website
+      - run: npm test
+        working-directory: website
+      - run: npm run build
+        working-directory: website
+      - uses: actions/upload-pages-artifact@v4
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_pages
+        with:
+          path: website/dist
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - uses: actions/deploy-pages@v4
+        id: deployment
