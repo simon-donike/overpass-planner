@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
 const references = JSON.parse(readFileSync('public/test-data/references.json', 'utf8'));
+const positions = JSON.parse(readFileSync('public/test-data/positions.json', 'utf8'));
 
 test('unchanged package imports and predicts inside real Pyodide', async ({page}) => {
   await page.route('**/*', route => {
@@ -13,7 +14,7 @@ test('unchanged package imports and predicts inside real Pyodide', async ({page}
   const failures: string[] = [];
   page.on('pageerror', error => failures.push(error.message));
   await page.goto('./');
-  const results = await page.evaluate(async (cases) => {
+  const calculated = await page.evaluate(async ({cases, positions}) => {
     const worker = (window as any).createPredictionWorker() as Worker;
     const results = [];
     for (let i = 0; i < cases.length; i++) {
@@ -26,9 +27,30 @@ test('unchanged package imports and predicts inside real Pyodide', async ({page}
       worker.postMessage({type: 'predict', base: new URL('./', location.href).href, id: i + 1, request: cases[i].request});
       }));
     }
+    const tracked = [];
+    for (let i = 0; i < positions.length; i++) {
+      tracked.push(await new Promise<any>((resolve, reject) => {
+        worker.onmessage = event => {
+          if (event.data.type === 'error') reject(new Error(event.data.message));
+          if (event.data.type === 'positions') resolve(event.data.result);
+        };
+        worker.postMessage({type: 'positions', base: new URL('./', location.href).href, id: 100 + i, request: positions[i].request});
+      }));
+    }
     worker.terminate();
-    return results;
-  }, references);
+    return {results, tracked};
+  }, {cases: references, positions});
+  const {results, tracked} = calculated;
+  for (let i = 0; i < positions.length; i++) {
+    for (const [j, row] of tracked[i].positions.entries()) {
+      const expected = positions[i].expected[j];
+      expect(row.satellite).toBe(expected.satellite);
+      expect(row.direction).toBe(expected.direction);
+      // Same SGP4 implementation as native Python; allow floating point roundoff.
+      for (const key of ['lon', 'lat', 'alt_km', 'ground_speed_kms']) expect(Math.abs(row[key] - expected[key])).toBeLessThan(1e-7);
+      expect(row.freshness).toBe(i === 1 ? 'stale' : 'fresh');
+    }
+  }
   expect(failures).toEqual([]);
   for (const [index, result] of results.entries()) {
     expect(result.document.schema_version).toBe('2.0');
@@ -72,4 +94,16 @@ test('the actual planner form runs Python and renders downloadable map results',
   const document = JSON.parse(readFileSync(documentPath!, 'utf8'));
   expect(document.provenance.orbital_elements[0].source).toContain('CelesTrak');
   expect(document.provenance.orbital_elements[0].source).toContain('direct browser download');
+  // Reuse the actual prediction interpreter for live positions, then show them
+  // in the real WebGL view. Tile failures are intentionally allowed offline.
+  await page.getByRole('button', {name: 'Select all', exact: true}).click();
+  await page.getByLabel('Live satellites', {exact: true}).check();
+  await expect(page.locator('#live-list button')).toHaveCount(7, {timeout: 120_000});
+  await expect(page.locator('#live-status')).toContainText('Updated');
+  await page.getByRole('button', {name: '3D globe', exact: true}).click();
+  await expect(page.locator('#globe-status')).toContainText('Drag to rotate');
+  await expect(page.locator('#globe .live-marker')).toHaveCount(7);
+  await page.getByRole('button', {name: 'Whole Earth'}).click();
+  await page.getByLabel('Live satellites', {exact: true}).uncheck();
+  await expect(page.locator('#globe .live-marker')).toHaveCount(0);
 });

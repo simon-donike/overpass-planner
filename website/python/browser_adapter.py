@@ -23,12 +23,65 @@ from eo_overpass_predictor import (
     load_roi,
     predict_overpasses,
     resolve_roi_timezone,
+    satellite_positions,
 )
 from eo_overpass_predictor.presentation import json_value, prediction_document
 
 
 def catalogue_json() -> str:
     return json.dumps(json_value(SATELLITE_CATALOGUE), allow_nan=False)
+
+
+_tracking_key = None
+_tracking_tles = None
+
+
+def positions_json(request_json: str) -> str:
+    """Instantaneous ground positions from the public, unchanged SGP4 API.
+
+    Cache only parsed elements, never positions. Supplied epochs and the caller's
+    explicit UTC observation time are preserved, including historical elements.
+    """
+    global _tracking_key, _tracking_tles
+    request = json.loads(request_json)
+    names = request["satellites"]
+    if (
+        not names
+        or len(set(names)) != len(names)
+        or any(name not in SATELLITE_CATALOGUE for name in names)
+    ):
+        raise ValueError("Choose at least one supported satellite, without duplicates.")
+    when = pd.Timestamp(request["when_utc"])
+    if pd.isna(when) or when.tzinfo is None:
+        raise ValueError("Live position time must include a UTC offset.")
+    when = when.tz_convert("UTC")
+    key = (tuple(names), request["tle_text"])
+    if key != _tracking_key:
+        with tempfile.TemporaryDirectory() as directory:
+            parsed = fetch_tles(
+                satellites=names,
+                tle_text=request["tle_text"],
+                tle_dir=Path(directory),
+                offline=True,
+                verbose=False,
+            )
+        _tracking_tles, _tracking_key = parsed, key
+    rows = satellite_positions(_tracking_tles, when_utc=when, satellites=names).to_dict(
+        orient="records"
+    )
+    for row in rows:
+        name = row["satellite"]
+        epoch = _tracking_tles[name]["epoch_utc"]
+        age = (when - pd.Timestamp(epoch)).total_seconds() / 86400
+        row.update(
+            epoch_utc=epoch,
+            tle_age_days=age,
+            freshness="fresh" if abs(age) <= 7 else "aged" if abs(age) <= 14 else "stale",
+            source=request.get("orbital_sources", {}).get(
+                name, request.get("orbital_source", "User-supplied TLE")
+            ),
+        )
+    return json.dumps(json_value({"when_utc": when, "positions": rows}), allow_nan=False)
 
 
 @contextmanager

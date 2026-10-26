@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import requests
 
-from eo_overpass_predictor import fetch_tles, load_roi, predict_overpasses
+from eo_overpass_predictor import fetch_tles, load_roi, predict_overpasses, satellite_positions
 from eo_overpass_predictor.presentation import prediction_document
 
 SITE = Path(__file__).resolve().parents[1]
@@ -94,6 +94,40 @@ def test_bundled_wheel_preserves_package_files():
                 name = source.relative_to(ROOT / "src").as_posix()
                 assert wheel.read(name) == source.read_bytes(), name
         assert any(name.endswith("/licenses/LICENSE") for name in wheel.namelist())
+
+
+def test_live_positions_use_public_propagation_and_preserve_element_epochs(tmp_path):
+    import pandas as pd
+
+    adapter = module("website_adapter", SITE / "python/browser_adapter.py")
+    text = "\n".join(
+        (ROOT / "tests/fixtures" / name).read_text() for name in ["satellites.tle", "sentinel1.tle"]
+    )
+    names = list(json.loads(adapter.catalogue_json()))
+    tles = fetch_tles(names, tle_text=text, tle_dir=tmp_path, offline=True, verbose=False)
+    request = {
+        "satellites": names,
+        "tle_text": text,
+        "orbital_source": "Frozen historical test elements",
+    }
+    for when in ["2026-10-29T12:34:56Z", "2026-11-30T12:34:56Z", "2026-09-01T12:34:56Z"]:
+        actual = json.loads(adapter.positions_json(json.dumps({**request, "when_utc": when})))
+        expected = satellite_positions(tles, when_utc=when).to_dict(orient="records")
+        for row, reference in zip(actual["positions"], expected, strict=True):
+            assert {key: row[key] for key in reference} == reference
+            epoch = tles[row["satellite"]]["epoch_utc"]
+            assert pd.Timestamp(row["epoch_utc"]) == pd.Timestamp(epoch)
+            age = (pd.Timestamp(when) - pd.Timestamp(epoch)).total_seconds() / 86400
+            assert row["tle_age_days"] == age
+            assert row["freshness"] == (
+                "fresh" if abs(age) <= 7 else "aged" if abs(age) <= 14 else "stale"
+            )
+    with pytest.raises(ValueError, match="UTC offset"):
+        adapter.positions_json(json.dumps({**request, "when_utc": "2026-10-29T12:34:56"}))
+    with pytest.raises(ValueError, match="without duplicates"):
+        adapter.positions_json(
+            json.dumps({**request, "satellites": [], "when_utc": "2026-10-29T12:34:56Z"})
+        )
 
 
 def test_simplified_timezone_data_is_small_attributed_and_usable(tmp_path):

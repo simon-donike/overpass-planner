@@ -88,8 +88,9 @@ npm run build
 npm run preview
 ```
 
-Deploy only `website/dist/` to the static host. Python assets and the existing
-package logo are copied during preparation; no application server is involved.
+Deploy only `website/dist/` to the static host. Python assets are copied during
+preparation; the website's orbit logo is used in the header and browser tab.
+No application server is involved.
 Cloudflare is the deployment target. There is no GitHub Pages workflow, automatic
 website publishing or scheduled orbital-data job. The relative Vite base also
 supports hosting under a repository subpath. Use HTTP(S), not `file://`, for module
@@ -107,7 +108,33 @@ receives UTC. Result timezone remains a separate ROI-based setting.
 On a narrow/mobile screen, an initial dialog explains the network, CPU and memory
 cost. Dismiss it by tapping outside, pressing Escape or choosing Continue. Dismissal
 lasts for that browser tab when session storage is available. No Python runtime is
-loaded until a calculation starts.
+loaded until a calculation starts or live satellites are enabled.
+
+## Globe and live positions
+
+Use **3D globe** to load the pinned MapLibre GL JS renderer and its worker from
+the website. OpenStreetMap raster tiles cover the globe up to ±85° latitude;
+the poles have a plain background. No API key, terrain, or imagery service is
+required. The globe shows the same region and filtered, selectable footprints as
+the 2D map. **Whole Earth** zooms out. Drawing or editing returns to the 2D map;
+coordinates and GeoJSON uploads work in either view. The 2D map remains available
+if WebGL fails. Arrow keys pan and +/− zoom; there is no automatic rotation.
+
+**Live satellites** is optional and uses the selected satellites and supplied TLEs,
+or retrieves elements directly in the browser with the existing two-hour cache.
+The website adapter calls the package's public `satellite_positions` API at the
+current UTC time every five seconds. These are SGP4 estimates, not telemetry.
+Markers show ground positions, with altitude, direction, element epoch, source and
+freshness available in the list. Choose a satellite in the list to center either
+view on it. The prediction start date and pass filters do not change live time.
+
+Live tracking shares one Pyodide interpreter with predictions and pauses while a
+prediction runs or the tab is hidden. Paused markers are cleared; cancelled or
+superseded updates cannot reappear. Switching it off stops periodic work. The
+adapter caches parsed TLEs, never propagated positions; orbital inputs are checked
+every ten minutes using the existing provider cache/backoff rules. Manual or old
+elements retain their actual epochs and freshness warnings. No external services
+are contacted by the scientific calculation itself.
 
 ## Direct browser orbital data
 
@@ -232,6 +259,11 @@ implementation parity, not independent observational accuracy. Separate UI tests
 cover drawing/editing/deletion, uploads, validation, options, map/table selection,
 complete and filtered downloads, cancellation, error recovery, stale responses,
 settings changes, keyboard operation and narrow layouts.
+Real WebGL tests cover lazy loading, view switching, live markers, mobile/keyboard
+controls, graphics failure and recovery. Live-position checks compare all seven
+satellites against direct native `satellite_positions` at explicit frozen times
+(1e-7 absolute tolerance), plus stale-element warnings, selection changes,
+hidden-tab pausing, shared-runtime cancellation and rejected late responses.
 
 Also run the repository's standard Python and distribution checks from `AGENTS.md`.
 CI runs the Python tests once on Ubuntu with Python 3.12. Website browser tests,
@@ -250,7 +282,10 @@ Display filters cannot recover passes excluded at calculation time.
 
 Scientific implementation and package resources: **Julian Manning**, MIT licence.
 The built wheel retains the original licence and author metadata. Frontend mapping
-uses Leaflet (BSD-2-Clause), Leaflet.draw (MIT) and attributed OpenStreetMap data.
+uses Leaflet (BSD-2-Clause), Leaflet.draw (MIT), MapLibre GL JS 6.16.0 (BSD-3-Clause)
+and attributed OpenStreetMap data. `public/map-licenses.txt` retains the licences
+of the pinned map packages and their transitive dependencies; update it when
+upgrading those dependencies.
 Python dependency wheels retain their upstream licences. The derived timezone
 dataset has an explicit local version and provenance; it is distributed under the
 original ODbL terms.

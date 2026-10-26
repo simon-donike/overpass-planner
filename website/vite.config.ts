@@ -9,5 +9,6 @@ export default defineConfig({
   plugins: [{name: 'exclude-historical-test-inputs', closeBundle() {
     rmSync(resolve('dist/test-data'), {recursive: true, force: true});
     rmSync(resolve('dist/data/orbital-elements.json'), {force: true});
+    rmSync(resolve('dist/logo.png'), {force: true});
   }}],
 });

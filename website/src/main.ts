@@ -5,7 +5,9 @@ import { downloadResult, exportText } from './exports';
 import { fetchOrbitalInputs } from './orbital-data';
 import { startTimeControl } from './start-time';
 import { showMobileNotice } from './mobile-notice';
-import type { PredictionRequest, Progress, Result, SatelliteInfo, WorkerEvent } from './types';
+import { BrowserRuntime } from './runtime';
+import { liveSatellites } from './live';
+import type { PredictionRequest, Progress, Result, SatelliteInfo } from './types';
 
 const base = new URL(import.meta.env.BASE_URL, location.href).href;
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -23,7 +25,6 @@ let visible: number[] = [];
 let selected: number | undefined;
 let revision = 0, runRevision = 0;
 let dirty = false, busy = false;
-let worker: Worker | undefined;
 let requestId = 0, runStart = 0, stageStart = 0;
 let lastProgress: Progress | undefined;
 let inputMode = 'draw', sortDescending = false;
@@ -78,55 +79,41 @@ $('roi-file').onchange = async () => {
 $('tle-file').onchange = async () => {
   const file = $<HTMLInputElement>('tle-file').files?.[0]; if (!file) return;
   if (file.size > 2 * 1024 * 1024) return fail('Choose a TLE file smaller than 2 MiB.');
-  $<HTMLTextAreaElement>('tle-text').value = await file.text(); changed(); updateOrbitalBadge();
+  $<HTMLTextAreaElement>('tle-text').value = await file.text(); changed(); updateOrbitalBadge(); live.refresh();
 };
 function updateOrbitalBadge() { $('orbital-badge').textContent = value('tle-text').trim() ? 'User supplied' : orbitalDescription ? 'Browser download/cache' : 'Fetch in browser'; }
-$('tle-text').addEventListener('input', updateOrbitalBadge);
+$('tle-text').addEventListener('input', () => { updateOrbitalBadge(); live.refresh(); });
 $('planner').addEventListener('input', changed);
 function setBusy(on: boolean) {
-  busy = on; $<HTMLButtonElement>('calculate').disabled = on; $('cancel').hidden = !on;
+  busy = on; live.pause(on); $<HTMLButtonElement>('calculate').disabled = on; $('cancel').hidden = !on;
   $('status-symbol').classList.toggle('spinning', on);
 }
-function createWorker() {
-  const current = new Worker(new URL('./worker.ts', import.meta.url), {type: 'module'});
-  current.onmessage = (event: MessageEvent<WorkerEvent>) => {
-    const message = event.data;
-    if (message.id !== requestId || current !== worker) return;
-    if (message.type === 'progress') {
-      if (lastProgress?.stage !== message.stage) stageStart = performance.now();
-      lastProgress = message;
-      $('status-title').textContent = ({runtime: 'Starting Python', dependencies: 'Loading scientific libraries', inputs: 'Preparing your inputs', prediction: 'Calculating overpasses', export: 'Preparing downloads'} as Record<string, string>)[message.stage] || message.stage;
-      $('status-detail').textContent = message.stage === 'prediction' ? `${message.label} · ${message.completed} of ${message.total} satellites complete` : message.label;
-      const progress = $<HTMLProgressElement>('progress'); progress.hidden = false;
-      if (message.stage === 'prediction') { progress.max = message.total; progress.value = message.completed; } else progress.removeAttribute('value');
-    } else if (message.type === 'ready') $('version').textContent = `ENGINE ${message.version} · PYODIDE`;
-    else if (message.type === 'result') {
-      result = message.result; selected = undefined;
-      dirty = revision !== runRevision;
-      if (!dirty) { roi = result.document.request.roi; map.show(roi, '', false, false); $('roi-summary').textContent = 'Normalized prediction region · WGS84'; }
-      $('outdated').hidden = !dirty;
-      setBusy(false); $('progress').hidden = true;
-      $('status-title').textContent = 'Calculation complete';
-      $('status-detail').textContent = `${result.document.count} overpasses · ${result.document.request.timezone} · calculated entirely on this device`;
-      $('elapsed').textContent = duration((performance.now() - runStart) / 1000);
-      $('assumption-list').innerHTML = result.document.assumptions.map(item => `<li>${escape(item)}</li>`).join('');
-      document.querySelectorAll<HTMLButtonElement>('[data-download]').forEach(button => button.disabled = false);
-      $<HTMLButtonElement>('download-filtered').disabled = false;
-      if (result.document.warnings.length) fail(result.document.warnings.map(w => w.message).join(' '));
-      updateFilters(); renderResults();
-    } else if (message.type === 'error') {
-      fail(message.message); setBusy(false); $('progress').hidden = true;
-      $('status-title').textContent = 'Calculation could not finish';
-      $('status-detail').textContent = 'Check your inputs or retry. You can also supply orbital elements manually.';
-      current.terminate(); worker = undefined;
-    }
-  };
-  current.onerror = event => {
-    if (current !== worker) return;
-    fail(event.message || 'The browser worker stopped. Retry, or reduce the region/window if device memory is limited.');
-    current.terminate(); worker = undefined; setBusy(false); $('progress').hidden = true; $('status-title').textContent = 'Browser worker stopped';
-  };
-  return current;
+const runtime = new BrowserRuntime(base, version => { $('version').textContent = `ENGINE ${version} · PYODIDE`; });
+const selectedSatellites = () => [...document.querySelectorAll<HTMLInputElement>('input[name="satellite"]:checked')].map(input => input.value);
+const live = liveSatellites(runtime, map, () => ({satellites: selectedSatellites(), catalogue, tle: value('tle-text').trim()}));
+$('satellite-options').addEventListener('change', () => live.refresh());
+function reportProgress(message: Progress) {
+  if (lastProgress?.stage !== message.stage) stageStart = performance.now();
+  lastProgress = message;
+  $('status-title').textContent = ({runtime: 'Starting Python', dependencies: 'Loading scientific libraries', inputs: 'Preparing your inputs', prediction: 'Calculating overpasses', export: 'Preparing downloads'} as Record<string, string>)[message.stage] || message.stage;
+  $('status-detail').textContent = message.stage === 'prediction' ? `${message.label} · ${message.completed} of ${message.total} satellites complete` : message.label;
+  const progress = $<HTMLProgressElement>('progress'); progress.hidden = false;
+  if (message.stage === 'prediction') { progress.max = message.total; progress.value = message.completed; } else progress.removeAttribute('value');
+}
+function showResult(calculated: Result) {
+  result = calculated; selected = undefined;
+  dirty = revision !== runRevision;
+  if (!dirty) { roi = result.document.request.roi; map.show(roi, '', false, false); $('roi-summary').textContent = 'Normalized prediction region · WGS84'; }
+  $('outdated').hidden = !dirty;
+  setBusy(false); $('progress').hidden = true;
+  $('status-title').textContent = 'Calculation complete';
+  $('status-detail').textContent = `${result.document.count} overpasses · ${result.document.request.timezone} · calculated entirely on this device`;
+  $('elapsed').textContent = duration((performance.now() - runStart) / 1000);
+  $('assumption-list').innerHTML = result.document.assumptions.map(item => `<li>${escape(item)}</li>`).join('');
+  document.querySelectorAll<HTMLButtonElement>('[data-download]').forEach(button => button.disabled = false);
+  $<HTMLButtonElement>('download-filtered').disabled = false;
+  if (result.document.warnings.length) fail(result.document.warnings.map(w => w.message).join(' '));
+  updateFilters(); renderResults();
 }
 function duration(seconds: number) { return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s` : `${Math.floor(seconds)}s`; }
 setInterval(() => {
@@ -178,19 +165,22 @@ $('planner').onsubmit = async event => {
       updateOrbitalBadge();
     }
     if (activeId !== requestId) return;
-    worker ??= createWorker(); worker.postMessage({type: 'predict', request, id: requestId, base});
+    const calculated = await runtime.predict(request, message => { if (activeId === requestId) reportProgress(message); });
+    if (activeId === requestId) showResult(calculated);
   } catch (error) {
     if (activeId !== undefined && activeId !== requestId) return;
+    const wasCalculating = !retrieval && activeId !== undefined;
     retrieval = undefined;
+    if (wasCalculating) runtime.terminate();
     fail((error as Error).message);
     setBusy(false); $('progress').hidden = true;
-    $('status-title').textContent = activeId === undefined ? 'Check prediction settings' : 'Orbital download could not finish';
-    $('status-detail').textContent = 'You can paste or upload orbital elements to continue.';
+    $('status-title').textContent = activeId === undefined ? 'Check prediction settings' : wasCalculating ? 'Calculation could not finish' : 'Orbital download could not finish';
+    $('status-detail').textContent = 'Check your inputs or retry. You can also paste or upload orbital elements.';
     if (activeId !== undefined) (document.querySelector('.orbital-input') as HTMLDetailsElement).open = true;
   }
 };
 $('cancel').onclick = () => {
-  requestId++; retrieval?.abort(); retrieval = undefined; worker?.terminate(); worker = undefined; setBusy(false); $('progress').hidden = true;
+  requestId++; retrieval?.abort(); retrieval = undefined; runtime.terminate(); setBusy(false); $('progress').hidden = true;
   $('status-title').textContent = 'Calculation cancelled'; $('status-detail').textContent = 'Your inputs are preserved. Calculate again whenever you are ready.';
 };
 function updateFilters() {
@@ -225,7 +215,7 @@ $('sort-coverage').onclick = () => { $<HTMLSelectElement>('sort').value = 'cover
 $('view').onchange = () => { $('table-wrap').hidden = value('view') === 'csv'; $('csv-wrap').hidden = value('view') !== 'csv'; };
 document.querySelectorAll<HTMLButtonElement>('[data-download]').forEach(button => button.onclick = () => result && downloadResult(result, button.dataset.download!));
 $('download-filtered').onclick = () => result && downloadResult(result, value('filtered-format'), visible);
-for (const [id, checked] of [['select-all', true], ['select-none', false]] as const) $(id).onclick = () => {document.querySelectorAll<HTMLInputElement>('input[name="satellite"]').forEach(input => input.checked = checked); changed();};
+for (const [id, checked] of [['select-all', true], ['select-none', false]] as const) $(id).onclick = () => {document.querySelectorAll<HTMLInputElement>('input[name="satellite"]').forEach(input => input.checked = checked); changed(); live.refresh();};
 async function loadStaticInputs() {
   try {
     const response = await fetch(new URL('catalogue.json', base));
