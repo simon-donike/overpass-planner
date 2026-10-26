@@ -57,7 +57,7 @@ export async function createGlobe(select: (index: number) => void, failure: (mes
         if (!marker) {
           const button = document.createElement('button'); button.type = 'button'; button.className = 'live-marker';
           button.style.setProperty('--satellite-colour', colours[row.satellite] || '#2563b9');
-          marker = new Marker({element: button}).setLngLat([row.lon, row.lat]).setPopup(new Popup().setText(description)).addTo(map);
+          marker = new Marker({element: button, opacityWhenCovered: 0}).setLngLat([row.lon, row.lat]).setPopup(new Popup().setText(description)).addTo(map);
           markers.set(row.satellite, marker);
         }
         marker.setLngLat([row.lon, row.lat]);
