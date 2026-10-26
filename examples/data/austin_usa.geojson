@@ -1,0 +1,38 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Austin, Texas"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.6,
+              30.1
+            ],
+            [
+              -97.6,
+              30.45
+            ],
+            [
+              -97.9,
+              30.45
+            ],
+            [
+              -97.9,
+              30.1
+            ],
+            [
+              -97.6,
+              30.1
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

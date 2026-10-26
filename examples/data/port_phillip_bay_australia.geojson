@@ -1,0 +1,38 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Port Phillip Bay"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              145.15,
+              -38.35
+            ],
+            [
+              145.15,
+              -37.79999999999999
+            ],
+            [
+              144.35,
+              -37.79999999999999
+            ],
+            [
+              144.35,
+              -38.349999999999994
+            ],
+            [
+              145.15,
+              -38.35
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

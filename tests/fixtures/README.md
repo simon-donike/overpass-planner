@@ -1,0 +1,11 @@
+# Regression fixtures
+
+`satellites.tle` contains genuine CelesTrak elements for all five catalogue satellites. `tle_provenance.json` records each source URL, retrieval instant, original epoch field and normalized-record SHA-256. The parsed UTC epochs are in `baseline.json`. These are historical reproducibility inputs, not current operational elements.
+
+The initial cases in `baseline.json` were generated **before package extraction** by executing the unchanged `Tools/overpass_helper_utility.py` from commit `ec78fe6`. It records the original source hash, Python and dependency versions, configurations, full prediction attributes and WKT geometries. Cases cover a point, polygon, partial coverage, no pass and disabled acquisition filtering. Additional cases for ascending/night passes, mission latitude limits and a clipped window boundary were generated from the same unchanged original source; the initial reference cases were verified unchanged. The old example CSV has no accompanying TLEs and is not the numerical oracle.
+
+The generator `tests/generate_baseline.py` uses `git show` to load that exact original source and reads the frozen TLEs without network requests. To investigate a proposed scientific change, run it explicitly in an environment matching the recorded dependencies. A source archive without Git history can run the regression tests but cannot regenerate the original implementation automatically. Do not refresh references to conceal a failing extraction or dependency regression.
+
+Tests require identical row membership/order, categorical fields, metadata and timestamps. Numerical tolerances are half a reported unit (0.05 for one-decimal fields, 0.005 for view angle); geometries must agree within 0.1 m in an independent UTM CRS appropriate to each reference region. Ten centimetres is negligible relative to the original 1-second along-track sampling (~7 km); it allows serialization/projection roundoff without permitting meaningful swath changes.
+
+The small KML is explicitly **synthetic**. It exercises parsing and matching categories, time spans and footprints; it is not an ESA plan or an assertion that any real acquisition occurred. Network tests mock HTTP responses. Notebook tests use these same orbital inputs and synthetic plan data with fixed dates.
