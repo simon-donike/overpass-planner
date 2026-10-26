@@ -1,0 +1,21 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Railroad Valley RadCalNet site",
+        "country": "USA",
+        "description": "Center of a radiometric calibration reference area; point ROI for planning optical satellite overpasses.",
+        "source": "https://www.radcalnet.org/resources/RadCalNetQuickstartGuide_20180702.pdf"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -115.69,
+          38.497
+        ]
+      }
+    }
+  ]
+}

@@ -146,7 +146,7 @@ A fully offline command using the bundled *historical regression* inputs:
 
 ```bash
 uv run eo-overpass predict \
-  --roi examples/data/port_phillip_bay.geojson \
+  --roi examples/data/port_phillip_bay_australia.geojson \
   --start 2026-10-26 --end 2026-10-27 --satellite S2B \
   --tle-file tests/fixtures/satellites.tle --offline \
   --cache-dir DATA --output OUTPUT/offline-example.csv
@@ -154,21 +154,33 @@ uv run eo-overpass predict \
 
 The fixed inputs demonstrate reproducibility; do not use them as current orbital elements. Sample inputs are versioned in `examples/data/`, historical sample reports in `examples/outputs/`, and documentation images in `docs/assets/`. Local `DATA/` caches and `OUTPUT/` reports are created as needed and ignored by Git. The demonstration notebooks intentionally use their configured workspace's `DATA/TLE`, `DATA/KML` and `OUTPUT` directories; these explicit workspace paths are outside automatic cache retention.
 
-## Example regions
+## Example regions and sites
 
-Each sample is a single GeoJSON file with WGS84 longitude/latitude coordinates:
+Each sample is a single GeoJSON file with WGS84 longitude/latitude coordinates, named `place_country.geojson`:
 
-| Region | Sample ROI | Local time zone |
-|---|---|---|
-| Port Phillip Bay, Australia | [port_phillip_bay.geojson](examples/data/port_phillip_bay.geojson) | `Australia/Melbourne` |
-| Madrid, Spain | [madrid.geojson](examples/data/madrid.geojson) | `Europe/Madrid` |
-| Austin, Texas, USA | [austin_tx.geojson](examples/data/austin_tx.geojson) | `America/Chicago` |
+| Region or site | Geometry | Sample ROI | Local time zone |
+|---|---|---|---|
+| Port Phillip Bay, Australia | Polygon | [port_phillip_bay_australia.geojson](examples/data/port_phillip_bay_australia.geojson) | `Australia/Melbourne` |
+| Madrid, Spain | Polygon | [madrid_spain.geojson](examples/data/madrid_spain.geojson) | `Europe/Madrid` |
+| Austin, Texas, USA | Polygon | [austin_usa.geojson](examples/data/austin_usa.geojson) | `America/Chicago` |
+| Cabauw, Netherlands | Point | [cabauw_netherlands.geojson](examples/data/cabauw_netherlands.geojson) | `Europe/Amsterdam` |
+| Railroad Valley, Nevada, USA | Point | [railroad_valley_usa.geojson](examples/data/railroad_valley_usa.geojson) | `America/Los_Angeles` |
 
-These are illustrative rectangular study areas. Port Phillip Bay preserves the original sample extent; the city examples are approximate areas around each city, not administrative boundaries. In either prediction notebook, set `ROI_FILE` to the desired filename. The CLI accepts the same files:
+The polygon samples are illustrative rectangular study areas. Port Phillip Bay preserves the original sample extent; the city examples are approximate areas around each city, not administrative boundaries.
+
+The point samples represent observation sites useful for planning comparisons with ground measurements:
+
+- **Cabauw:** the BSRN surface radiation station, at longitude 4.9267°, latitude 51.9711°. Coordinates and site information: [KNMI station publication](https://www.knmi.nl/research/publications/basic-measurements-of-radiation-at-station-cabauw-koninklijk-nederlands-meteorologisch-instituut-de-bilt).
+- **Railroad Valley:** the center of the RadCalNet radiometric calibration area, at longitude −115.690°, latitude 38.497°. Coordinates and site information: [RadCalNet quickstart guide, section 4.2.1.1](https://www.radcalnet.org/resources/RadCalNetQuickstartGuide_20180702.pdf).
+
+For a point ROI, coverage is reported as 0 or 100%; it tests whether the point lies inside the modeled swath. The Railroad Valley point represents the center of the published calibration area. These samples supply locations for prediction, without loading ground measurements or imagery observations.
+
+In either prediction notebook, set `ROI_FILE` to the desired filename. The CLI accepts the same files:
 
 ```bash
-uv run eo-overpass next --roi examples/data/madrid.geojson --satellite S2
-uv run eo-overpass next --roi examples/data/austin_tx.geojson --satellite LS
+uv run eo-overpass next --roi examples/data/madrid_spain.geojson --satellite S2
+uv run eo-overpass next --roi examples/data/austin_usa.geojson --satellite LS
+uv run eo-overpass next --roi examples/data/railroad_valley_usa.geojson --satellite LS
 ```
 
 ## Supported instruments and scientific assumptions

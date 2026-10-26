@@ -1,0 +1,21 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Cabauw BSRN station",
+        "country": "Netherlands",
+        "description": "Surface radiation monitoring site; point ROI for planning satellite and ground measurement comparisons.",
+        "source": "https://www.knmi.nl/research/publications/basic-measurements-of-radiation-at-station-cabauw-koninklijk-nederlands-meteorologisch-instituut-de-bilt"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          4.9267,
+          51.9711
+        ]
+      }
+    }
+  ]
+}
