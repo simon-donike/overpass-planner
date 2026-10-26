@@ -39,7 +39,7 @@ export function createMap(onChange: (roi: unknown, label: string) => void) {
   return {
     show(input: unknown, label: string, fit = true, notify = true) {
       const layer = L.geoJSON(input as GeoJsonObject, {
-        style: {color: '#187c79', weight: 2, fillOpacity: 0.15},
+        style: {color: '#2563b9', weight: 2, fillOpacity: 0.15},
         pointToLayer: (_feature, ll) => L.marker(ll, {icon}),
       });
       if (!layer.getBounds().isValid()) throw new Error('The region contains no supported map geometry.');
@@ -63,7 +63,7 @@ export function createMap(onChange: (roi: unknown, label: string) => void) {
       footprints.clearLayers();
       for (const index of visible) {
         const pass = result.document.passes[index];
-        const layer = L.geoJSON(pass.geometry, {style: {color: catalogue[pass.satellite]?.colour || '#187c79', weight: selected === index ? 4 : 1.5, fillOpacity: selected === index ? 0.35 : 0.1}});
+        const layer = L.geoJSON(pass.geometry, {style: {color: catalogue[pass.satellite]?.colour || '#2563b9', weight: selected === index ? 4 : 1.5, fillOpacity: selected === index ? 0.35 : 0.1}});
         layer.bindTooltip(`${pass.satellite} · ${pass.overpass_utc}`, {sticky: true}).on('click', () => select(index));
         footprints.addLayer(layer);
       }

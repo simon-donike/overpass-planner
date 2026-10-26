@@ -6,6 +6,7 @@ public/data/orbital-elements.json
 public/build.json
 public/catalogue.json
 public/browser_adapter.py
+public/logo.png
 public/test-data/
 .cache/
 test-results/

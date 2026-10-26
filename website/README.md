@@ -8,7 +8,7 @@ are not modified by the website.
 
 The map supports point, rectangle and polygon drawing, editing and deletion,
 coordinate entry, and WGS84 GeoJSON uploads (Geometry, Feature or FeatureCollection).
-The planner exposes satellite selection, UTC start time, duration, ROI timezone,
+The planner exposes satellite selection, UTC or device-local start time, duration, ROI timezone,
 coverage/illumination filters and Sentinel-1 IW/EW. Results include selectable map
 footprints, a sortable table, CSV preview and CSV/GeoJSON/JSON downloads. Complete
 and filtered downloads are labelled separately.
@@ -80,7 +80,7 @@ used. The first preparation rebuilds the global spatial index and can take sever
 minutes; later builds reuse the checksummed result. Build-only Pydantic and Numba dependencies
 are isolated under `website/.cache/build-deps/` and never shipped to browsers.
 
-## Build and optional GitHub Pages
+## Static preview
 
 ```bash
 cd website
@@ -88,27 +88,26 @@ npm run build
 npm run preview
 ```
 
-Deploy **only `website/dist/`** to any static host. The relative Vite base supports
-both `https://owner.github.io/repository/` and a custom-domain root. All Python
-assets are self-hosted; the production site needs no cross-origin isolation,
-SharedArrayBuffer or special response headers. Do not open `index.html` with
-`file://`; browsers require HTTP(S) for module workers and resource loading.
+Deploy only `website/dist/` to the static host. Python assets and the existing
+package logo are copied during preparation; no application server is involved.
+Cloudflare is the deployment target. There is no GitHub Pages workflow, automatic
+website publishing or scheduled orbital-data job. The relative Vite base also
+supports hosting under a repository subpath. Use HTTP(S), not `file://`, for module
+workers and resource loading.
 
-GitHub Actions is **optional for building/publishing**, with no role in retrieving
-orbital data or keeping a deployed site current. You can build locally and upload
-`dist/` to any static host. The supplied `.github/workflows/website.yml` is a
-convenient deployment option:
+## Start time and mobile use
 
-1. Merge the website into the repository's default branch.
-2. Under **Settings → Pages → Build and deployment**, select **GitHub Actions**.
-3. Run **Browser planner · GitHub Pages** manually with **publish_pages** enabled.
-   The workflow builds and tests before publishing. Pushes and pull requests run
-   validation only; they do not publish or change the Cloudflare deployment.
-4. Optionally configure a custom domain in Pages settings.
+Start time defaults to UTC. Select **Local time** to use the browser/device timezone,
+which is shown with the UTC offset for the chosen date. Switching the display keeps
+the same instant, including repeated autumn hours. Editing a repeated local hour
+uses its first occurrence; the hint shows the selected offset and UTC can select
+either occurrence. Nonexistent spring-forward times are rejected. The worker always
+receives UTC. Result timezone remains a separate ROI-based setting.
 
-The workflow runs on code changes or manual dispatch. It contains no schedule,
-orbital-data download or data-publishing step. Existing deployments fetch their own
-TLEs regardless of when the site was built or whether Actions is enabled.
+On a narrow/mobile screen, an initial dialog explains the network, CPU and memory
+cost. Dismiss it by tapping outside, pressing Escape or choosing Continue. Dismissal
+lasts for that browser tab when session storage is available. No Python runtime is
+loaded until a calculation starts.
 
 ## Direct browser orbital data
 
@@ -235,7 +234,10 @@ complete and filtered downloads, cancellation, error recovery, stale responses,
 settings changes, keyboard operation and narrow layouts.
 
 Also run the repository's standard Python and distribution checks from `AGENTS.md`.
-Existing package CI and release workflows remain separate.
+CI runs the Python tests once on Ubuntu with Python 3.12. Website browser tests,
+formatting, typing and distribution validation remain available as local commands;
+there is no operating-system or Python-version matrix. Tagged publishing remains
+a separate release workflow.
 
 ## Scientific interpretation
 

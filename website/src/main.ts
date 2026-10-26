@@ -3,6 +3,8 @@ import { template } from './template';
 import { createMap } from './map';
 import { downloadResult, exportText } from './exports';
 import { fetchOrbitalInputs } from './orbital-data';
+import { startTimeControl } from './start-time';
+import { showMobileNotice } from './mobile-notice';
 import type { PredictionRequest, Progress, Result, SatelliteInfo, WorkerEvent } from './types';
 
 const base = new URL(import.meta.env.BASE_URL, location.href).href;
@@ -25,8 +27,8 @@ let worker: Worker | undefined;
 let requestId = 0, runStart = 0, stageStart = 0;
 let lastProgress: Progress | undefined;
 let inputMode = 'draw', sortDescending = false;
-const now = new Date(); now.setUTCSeconds(0, 0);
-$<HTMLInputElement>('start').value = now.toISOString().slice(0, 16);
+const startTime = startTimeControl($<HTMLInputElement>('start'), document.querySelectorAll<HTMLButtonElement>('[data-time-basis]'), $('start-time-hint'));
+showMobileNotice();
 
 function fail(message: string) { $('error').textContent = message; $('error').hidden = false; $('error').scrollIntoView({block: 'nearest'}); }
 function clearError() { $('error').hidden = true; }
@@ -149,8 +151,7 @@ $('planner').onsubmit = async event => {
     if (!satellites.length) throw new Error('Select at least one satellite.');
     for (const id of ['days', 'coverage', 'sun']) if (!$<HTMLInputElement>(id).checkValidity() || !Number.isFinite(number(id))) throw new Error(`Enter a valid value for ${id}.`);
     const tle = value('tle-text').trim();
-    const date = new Date(value('start') + 'Z');
-    if (!Number.isFinite(date.getTime())) throw new Error('Choose a valid UTC start time.');
+    const date = startTime.read();
     const request: PredictionRequest = {
       roi, roi_name: value('roi-name'), satellites, tle_text: tle,
       orbital_source: 'User-supplied TLE',
@@ -210,7 +211,7 @@ function renderResults() {
   $('result-count').textContent = `${visible.length} / ${result.document.count}`;
   if (!dirty) $('result-context').textContent = result.document.count === 0 ? 'No passes met the prediction settings. Try a longer window or different settings.' : `${visible.length} visible of ${result.document.count} calculated passes. Display filters cannot recover passes excluded by prediction settings.`;
   $('results-body').innerHTML = visible.length ? visible.map(index => {
-    const pass = result!.document.passes[index], colour = catalogue[pass.satellite]?.colour || '#187c79';
+    const pass = result!.document.passes[index], colour = catalogue[pass.satellite]?.colour || '#2563b9';
     const notes = pass.status.warnings.map(w => w.message).join(' ');
     return `<tr data-pass="${index}" class="${selected === index ? 'selected' : ''}"><td><button type="button" class="pass-select" aria-label="Select ${escape(pass.satellite)} pass at ${escape(pass.overpass_utc)}"><span class="sat-dot" style="background:${colour}"></span>${escape(pass.satellite)}</button><small>${escape(pass.sensor)}</small></td><td><strong>${escape(pass.overpass_local.replace('T', ' '))}</strong><small>${escape(pass.overpass_utc.replace('T', ' '))} · UTC</small></td><td><strong>${pass.roi_coverage_pct.toFixed(1)}%</strong></td><td>${escape(pass.direction)}</td><td>${pass.incidence_angle_deg == null ? `${pass.view_angle_deg.toFixed(2)}° view` : `${pass.incidence_angle_deg.toFixed(2)}° incidence`}<small>${escape(pass.status.imaging_label)}</small></td><td><span class="freshness ${escape(pass.status.orbital_data)}">${escape(pass.status.orbital_data)} · ${Math.abs(pass.status.tle_age_days).toFixed(1)} d</span><small>${escape(pass.status.acquisition_label)}</small>${notes ? `<details><summary>Notes</summary><p>${escape(notes)}</p></details>` : ''}</td></tr>`;
   }).join('') : '<tr><td colspan="6" class="empty-state">No passes match this view. Adjust display filters or run a new calculation.</td></tr>';
