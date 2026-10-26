@@ -11,6 +11,7 @@ from xml.etree.ElementTree import ParseError
 from zoneinfo import ZoneInfoNotFoundError
 
 import geopandas as gpd
+import pandas as pd
 import requests
 import typer
 from typer.core import TyperCommand
@@ -273,6 +274,82 @@ def _run_prediction(
                 )
             else:
                 api.export_overpass_footprints(passes, output)
+    if command == "next":
+        typer.echo(
+            f"{len(passes)} overpass(es) · {passes.attrs['roi_name']} · {passes.attrs['timezone']}"
+        )
+        typer.echo(
+            f"Window (UTC): {passes.attrs['window_start_utc']} to {passes.attrs['window_end_utc']}"
+        )
+        if passes.empty:
+            typer.echo("No passes meet the selected window and filters.")
+        else:
+            typer.echo(api.summarise_overpasses(passes).to_string(index=False))
+
+
+@app.command("next", cls=_SatelliteCommand)
+def next_command(
+    point: Annotated[
+        tuple[float, float] | None, typer.Option(help="WGS84 longitude latitude.")
+    ] = None,
+    bbox: Annotated[
+        tuple[float, float, float, float] | None, typer.Option(help="WGS84 west south east north.")
+    ] = None,
+    roi: Annotated[
+        Path | None, typer.Option(exists=True, dir_okay=False, help="ROI vector file.")
+    ] = None,
+    days: Annotated[float, typer.Option(help="Days to search from --start; default: 14.")] = 14,
+    start: Annotated[
+        str | None, typer.Option(help="ISO-8601 start; defaults to now (UTC).")
+    ] = None,
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Optional CSV, GeoJSON, GeoPackage or HTML export."),
+    ] = None,
+    satellite: Satellite = None,
+    timezone: Timezone = None,
+    tle_file: TLEFile = None,
+    cache_dir: Cache = None,
+    no_cache: NoCache = False,
+    offline: Annotated[bool, typer.Option(help="Use supplied TLEs or cache; no network.")] = False,
+    min_coverage: MinCoverage = 0,
+    min_sun_elevation: MinSun = 0,
+    all_passes: AllPasses = False,
+    plans: Plans = None,
+    fetch_plans: FetchPlans = False,
+) -> None:
+    """Find upcoming passes for exactly one point, bounding box or ROI file."""
+    with _errors("next"):
+        if sum(value is not None for value in (point, bbox, roi)) != 1:
+            raise ValueError(
+                "Choose exactly one of --point LON LAT, --bbox WEST SOUTH EAST NORTH, or --roi FILE."
+            )
+        if not math.isfinite(days) or days * 86400 < 1:
+            raise ValueError("--days must be finite and cover at least one second.")
+        start_ts = (
+            _to_utc_timestamp(start)
+            if start is not None
+            else pd.Timestamp.now(tz="UTC").floor("min")
+        )
+        end_ts = start_ts + pd.Timedelta(days=days)
+        _run_prediction(
+            "next",
+            point if point is not None else bbox if bbox is not None else roi,
+            start_ts.isoformat(),
+            end_ts.isoformat(),
+            output,
+            satellite,
+            timezone,
+            tle_file,
+            cache_dir,
+            no_cache,
+            offline,
+            min_coverage,
+            min_sun_elevation,
+            all_passes,
+            plans,
+            fetch_plans,
+        )
 
 
 @app.command("predict", cls=_SatelliteCommand)

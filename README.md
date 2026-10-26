@@ -63,6 +63,21 @@ Runnable examples: [online prediction](examples/predict.py) and [frozen offline 
 
 ## Command line
 
+Find upcoming passes without creating an ROI file or choosing an export path:
+
+```bash
+uv run eo-overpass next --point 144.96 -37.82
+uv run eo-overpass next --bbox 144.35 -38.35 145.15 -37.80 --days 7 --min-coverage 80
+uv run eo-overpass next --point 144.96 -37.82 --satellite S2 --output planner.html
+uv run eo-overpass next --point 144.96 -37.82 --days 7 --json
+```
+
+Coordinates are **longitude, latitude**. `next` takes exactly one of `--point`,
+`--bbox`, or `--roi`; it defaults to the current UTC minute through the next 14
+days. Use `--start` for an explicit date. Terminal reports show local/UTC times,
+coverage, imaging eligibility, acquisition-plan evidence, and element freshness.
+Export is optional; CSV, GeoJSON, GeoPackage and HTML are supported.
+
 ```bash
 uv run eo-overpass satellites
 uv run eo-overpass satellites --mission Sentinel-2
@@ -81,7 +96,7 @@ uv run eo-overpass tracker \
   --satellite LS --output live_tracker.html
 ```
 
-Use `predict --help` or `tracker --help` for all options. `--satellite S2` selects Sentinel-2A/B/C; `--satellite LS` selects Landsat 8/9. Multiple values can follow one option (`--satellite S2B S2C` or `--satellite S2 LS`), ending at the next option. Comma-separated values and repeated options also work. Names and group aliases are case insensitive; full names containing spaces must be quoted, and NORAD IDs are accepted. Overlapping selections are included only once, in first-selected order. Omitting the option selects all five satellites. `--timezone` overrides automatic ROI-local timezone selection. `--all-passes` includes night/ascending geometric passes. Output suffixes select CSV, GeoJSON, GeoPackage or HTML; explicit `--format` must agree with the suffix.
+Use `next --help`, `predict --help` or `tracker --help` for all options. `--satellite S2` selects Sentinel-2A/B/C; `--satellite LS` selects Landsat 8/9. Multiple values can follow one option (`--satellite S2B S2C` or `--satellite S2 LS`), ending at the next option. Comma-separated values and repeated options also work. Names and group aliases are case insensitive; full names containing spaces must be quoted, and NORAD IDs are accepted. Overlapping selections are included only once, in first-selected order. Omitting the option selects all five satellites. `--timezone` overrides automatic ROI-local timezone selection. `--all-passes` includes night/ascending geometric passes. Output suffixes select CSV, GeoJSON, GeoPackage or HTML; explicit `--format` must agree with the suffix.
 
 `--plans` uses local KML/KMZ files or a directory. `--fetch-plans` explicitly retrieves ESA plans and cannot be combined with `--plans` or `--offline`. Missing optional plans yield **no plan loaded**, which means unknown acquisition status. Exit codes are 0 for success (including an empty prediction), 2 for invalid inputs, and 1 for operational failures.
 
@@ -93,7 +108,7 @@ Default download roots follow [platformdirs](https://platformdirs.readthedocs.io
 
 - **TLEs:** one file per satellite, at most five stable filenames. New elements replace previous ones atomically. Fresh entries are reused for 12 hours; stale entries remain available with warnings for offline/network-failure fallback.
 - **ESA plans:** after successful online retrieval, the default cache removes downloads older than 30 days, then the oldest remaining files toward a 50 MiB budget. Files returned for the current request are protected, including historical plans; they may temporarily exceed the budget. Offline loading does not prune files. Explicit `plan_dir` and `--cache-dir` overrides are not automatically pruned.
-- **Temporary mode:** add `--no-cache` to `predict` or `tracker`. Downloads use a unique system temporary directory, removed on normal completion or Python errors. It ignores persistent caches, so `--offline --no-cache` requires supplied TLEs for every selected satellite. It cannot be combined with `--cache-dir`.
+- **Temporary mode:** add `--no-cache` to `next`, `predict` or `tracker`. Downloads use a unique system temporary directory, removed on normal completion or Python errors. It ignores persistent caches, so `--offline --no-cache` requires supplied TLEs for every selected satellite. It cannot be combined with `--cache-dir`.
 - **Outputs:** CSV, GeoJSON, GeoPackage and HTML remain at `--output` until you remove them. Supplied ROI/TLE/plan files are read as inputs. Cache management never searches output directories or unrelated folders.
 
 ```bash

@@ -1,14 +1,29 @@
-# Command line
+# CLI
 
-Use `eo-overpass satellites` to list instruments, `predict` to write CSV, GeoJSON,
-GeoPackage or HTML reports, and `tracker` to export the standalone HTML tracker.
-Both prediction commands require `--roi FILE`, `--start`, `--end`, and `--output`.
-`--satellite S2` selects Sentinel-2A/B/C; `--satellite LS` selects Landsat 8/9.
-Space-separated, comma-separated and repeated satellite values are accepted.
-`--plans` reads local ESA KML/KMZ inputs; `--fetch-plans` requests retrieval.
-`--offline` prevents orbital-data network access.
+## Find upcoming passes
 
-Use `--no-cache` for temporary downloads, or `--cache-dir` to choose a reusable
-cache. `cache info` and `cache clear` inspect or remove recognised cached data.
-Exit codes are 0 for success (including empty results), 2 for input errors and 1
-for operational failures. See `--help` for each command and the README's cache policy.
+```bash
+eo-overpass next --point 144.96 -37.82
+eo-overpass next --bbox 144.35 -38.35 145.15 -37.80 --days 7 --min-coverage 80
+eo-overpass next --roi area.geojson --satellite S2 --fetch-plans
+eo-overpass next --point 144.96 -37.82 --output planner.html
+```
+
+Choose exactly one location input. Coordinates use WGS84 **longitude, latitude**;
+bounding boxes use west, south, east, north. The default window starts at the
+current UTC minute and lasts 14 days. `--start` fixes the start for reproducibility;
+`--days` accepts fractional days, with a minimum window of one second. Defaults
+select all five supported satellites and daytime descending passes. Use
+`--all-passes` to include other geometric opportunities, `--satellite` to select
+instruments, and `--timezone` to override automatic ROI-local time selection.
+
+No output path is needed for a terminal report. Optional `--output` suffixes are
+`.csv`, `.geojson` (or `.json`), `.gpkg`, and `.html` (or `.htm`). The existing
+`predict` and `tracker` commands retain explicit ROI-file/start/end/output inputs;
+both now support coverage, illumination and acquisition-plan options, and
+`predict` also accepts HTML exports.
+
+Orbital data are downloaded/cached by default. `--offline`, `--tle-file`,
+`--cache-dir` and `--no-cache` work as on `predict`. ESA acquisition plans are
+checked only with local `--plans` or explicit `--fetch-plans`. Plan-download
+failure falls back to cached plans with a warning. Offline mode forbids fetching.
