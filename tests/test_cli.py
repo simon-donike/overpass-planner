@@ -96,6 +96,17 @@ def test_argument_validation(cli_args, tmp_path, extra):
     assert not (tmp_path / "out.csv").exists()
 
 
+def test_invalid_s1_mode_is_structured(cli_args, tmp_path):
+    result = runner.invoke(
+        app,
+        ["predict", *cli_args, "--output", str(tmp_path / "out.csv"), "--s1-mode", "SM", "--json"],
+    )
+    assert result.exit_code == 2
+    document = json.loads(result.stdout)
+    assert document["schema_version"] == "2.0"
+    assert document["error"]["code"] == "invalid_input"
+
+
 def test_empty_result_is_success(cli_args, tmp_path):
     output = tmp_path / "empty.csv"
     result = runner.invoke(

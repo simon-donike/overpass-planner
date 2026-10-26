@@ -13,8 +13,8 @@ Choose exactly one location input. Coordinates use WGS84 **longitude, latitude**
 bounding boxes use west, south, east, north. The default window starts at the
 current UTC minute and lasts 14 days. `--start` fixes the start for reproducibility;
 `--days` accepts fractional days, with a minimum window of one second. Defaults
-select all five supported satellites and daytime descending passes. Use
-`--all-passes` to include other geometric opportunities, `--satellite` to select
+select all seven supported satellites. Optical sensors default to daytime descending passes; Sentinel-1 is eligible day/night on ascending/descending passes. Use
+`--all-passes` to include other optical geometric opportunities, `--satellite` to select
 instruments, and `--timezone` to override automatic ROI-local time selection.
 
 No output path is needed for a terminal report. Optional `--output` suffixes are
@@ -27,6 +27,11 @@ Orbital data are downloaded/cached by default. `--offline`, `--tle-file`,
 `--cache-dir` and `--no-cache` work as on `predict`. ESA acquisition plans are
 checked only with local `--plans` or explicit `--fetch-plans`. Plan-download
 failure falls back to cached plans with a warning. Offline mode forbids fetching.
+Use `--s1-mode IW|EW` with `next`, `predict` or `tracker` when Sentinel-1 is
+selected; IW is the default and one mode applies to both Sentinel-1 units. The
+nominal right-looking footprint reports mode, look side, incidence angle and
+edge margin. Plan matches may add `esa_mode`, `esa_polarisation`, datatake and
+relative-orbit fields.
 
 ## Read a pass status
 
@@ -34,11 +39,13 @@ Each terminal/JSON/HTML pass separates:
 
 - **Geometry:** the model's nominal swath intersects the ROI; coverage is reported
   separately as a percentage.
-- **Imaging:** expected or not expected under the direction, solar-elevation and
-  mission-latitude rules. This is not an acquisition observation.
-- **Acquisition evidence:** planned nominal, planned other mode, no matching
-  datatake in a loaded plan, unknown because no plan covers that date, or not
-  checked for Landsat. A missing plan never becomes a negative plan match.
+- **Imaging:** expected or not expected under the mission rules. Optical sensors
+  use direction, solar-elevation and latitude filters; Sentinel-1 is eligible day
+  and night on either orbit direction. This is not an acquisition observation.
+- **Acquisition evidence:** planned nominal, planned other mode, Sentinel-1
+  `planned`, no matching datatake in a loaded plan, unknown because no plan covers
+  that date, or not checked for Landsat. A missing plan never becomes a negative
+  plan match.
 - **Orbital data:** absolute distance between the supplied TLE epoch and the
   pass epoch, using the model's reported age. Fresh is <=7 days, aged is >7 to
   14 days, and stale is >14 days. These labels are refresh reminders, not
@@ -69,7 +76,7 @@ prediction options, generate a new report. Live positions do not refresh embedde
 TLEs or extend the prediction window. As before, satellite.js and fonts load from
 public CDNs; the HTML report is not a fully offline browser bundle.
 
-## JSON response contract (1.0)
+## JSON response contract (2.0)
 
 ```bash
 eo-overpass next --point 144.96 -37.82 --days 7 --json > passes.json
@@ -100,7 +107,7 @@ variants. Successful prediction responses contain:
 Each pass includes existing scientific columns, a GeoJSON `geometry`, and a
 `status` object. Machine codes are `geometry: intersects`,
 `imaging: expected|not_expected`,
-`acquisition: planned_nominal|planned_other|not_planned|unknown|not_checked`,
+`acquisition: planned_nominal|planned_other|planned|not_planned|unknown|not_checked`,
 `orbital_data: fresh|aged|stale`, and `imagery: not_checked`. Human label fields
 are for display; use codes for decisions. Optional ESA fields are present when
 plans were cross-checked. Missing values serialize as `null`, never NaN.
@@ -112,7 +119,7 @@ GeoJSON footprints; `--json` controls the stdout response independently.
 Expected errors have the form:
 
 ```json
-{"schema_version":"1.0","ok":false,"command":"next","error":{"code":"invalid_input","message":"Choose exactly one location input."}}
+{"schema_version":"2.0","ok":false,"command":"next","error":{"code":"invalid_input","message":"Choose exactly one location input."}}
 ```
 
 Exit codes remain **0** for success (including empty results), **2** for invalid

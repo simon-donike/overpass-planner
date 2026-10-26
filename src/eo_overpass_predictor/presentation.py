@@ -18,14 +18,14 @@ from shapely.geometry import mapping
 
 from .types import TLERecord
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "2.0"
 ASSUMPTIONS = [
-    "Nominal nadir-centred optical swaths; geometric coverage is not an acquisition guarantee.",
-    "Expected imaging uses direction, solar elevation and mission latitude limits.",
-    "ESA plans are checked only when supplied or explicitly requested; Landsat is not checked.",
+    "Optical sensors use nominal nadir-centred swaths; Sentinel-1 uses nominal side-looking radar geometry. Geometric coverage is not an acquisition guarantee.",
+    "Imaging eligibility follows the sensor model: optical sensors use direction, solar elevation and mission limits; Sentinel-1 operates day and night.",
+    "ESA plans are checked only when supplied or explicitly requested; a missing plan means unknown acquisition. Landsat acquisition is not checked.",
     "TLE age labels use absolute distance from the pass epoch: fresh <=7, aged <=14, stale >14 days. "
     "These are refresh reminders, not calibrated confidence estimates.",
-    "Swath-edge margins within approximately +/-5 km are uncertain.",
+    "Optical swath-edge margins within approximately +/-5 km are uncertain; Sentinel-1 geometry is nominal and mode/look configuration dependent.",
     "Imagery availability and cloud cover have not been checked.",
 ]
 
@@ -52,34 +52,55 @@ def describe_pass(row: Mapping[str, Any] | pd.Series) -> dict[str, Any]:
     warnings: list[dict[str, str]] = []
     raw_plan = row.get("esa_plan_status")
     plan = str(raw_plan) if raw_plan is not None and pd.notna(raw_plan) else None
-    if row["mission"] != "Sentinel-2":
-        acquisition, acquisition_label = "not_checked", "Acquisition not checked (Landsat)"
-    elif plan == "planned (NOMINAL)":
-        acquisition, acquisition_label = "planned_nominal", "Planned (nominal)"
-    elif plan and plan.startswith("planned ("):
-        acquisition, acquisition_label = "planned_other", plan.capitalize()
-        warnings.append(
-            {
-                "code": "non_nominal_plan",
-                "message": "Non-nominal plans may not produce distributed imagery.",
-            }
-        )
-    elif plan == "not planned":
-        acquisition, acquisition_label = "not_planned", "No match in loaded ESA plan"
-        warnings.append(
-            {
-                "code": "plan_no_match",
-                "message": "No matching datatake in the loaded plan; simplified plan footprints can miss edge overlaps.",
-            }
-        )
-    else:
+    mission = str(row.get("mission", ""))
+    if mission == "Sentinel-1":
+        if plan == "planned" or (plan and plan.startswith("planned (")):
+            acquisition, acquisition_label = "planned", "Planned"
+        elif plan == "not planned":
+            acquisition, acquisition_label = "not_planned", "No match in loaded ESA plan"
+            warnings.append(
+                {
+                    "code": "plan_no_match",
+                    "message": "No matching Sentinel-1 acquisition in the loaded plan.",
+                }
+            )
+        else:
+            acquisition, acquisition_label = "unknown", "Acquisition unknown (no plan loaded)"
+            warnings.append(
+                {
+                    "code": "acquisition_unknown",
+                    "message": "No loaded Sentinel-1 plan covers this pass; acquisition is unknown.",
+                }
+            )
+    elif mission == "Sentinel-2":
         acquisition, acquisition_label = "unknown", "Acquisition unknown (no plan loaded)"
-        warnings.append(
-            {
-                "code": "acquisition_unknown",
-                "message": "No loaded ESA plan covers this pass; acquisition is unknown.",
-            }
-        )
+        if plan == "planned (NOMINAL)":
+            acquisition, acquisition_label = "planned_nominal", "Planned (nominal)"
+        elif plan and plan.startswith("planned ("):
+            acquisition, acquisition_label = "planned_other", plan.capitalize()
+            warnings.append(
+                {
+                    "code": "non_nominal_plan",
+                    "message": "Non-nominal plans may not produce distributed imagery.",
+                }
+            )
+        elif plan == "not planned":
+            acquisition, acquisition_label = "not_planned", "No match in loaded ESA plan"
+            warnings.append(
+                {
+                    "code": "plan_no_match",
+                    "message": "No matching datatake in the loaded plan; simplified plan footprints can miss edge overlaps.",
+                }
+            )
+        else:
+            warnings.append(
+                {
+                    "code": "acquisition_unknown",
+                    "message": "No loaded ESA plan covers this pass; acquisition is unknown.",
+                }
+            )
+    else:
+        acquisition, acquisition_label = "not_checked", "Acquisition not checked (Landsat)"
 
     age = float(row["tle_age_days"])
     distance = abs(age)
@@ -91,7 +112,7 @@ def describe_pass(row: Mapping[str, Any] | pd.Series) -> dict[str, Any]:
                 "message": f"Orbital elements are {distance:.1f} days from this pass; refresh before relying on its timing.",
             }
         )
-    if abs(float(row["edge_margin_km"])) <= 5:
+    if mission != "Sentinel-1" and abs(float(row["edge_margin_km"])) <= 5:
         warnings.append(
             {
                 "code": "swath_edge",
@@ -99,10 +120,26 @@ def describe_pass(row: Mapping[str, Any] | pd.Series) -> dict[str, Any]:
             }
         )
     expected = bool(row["imaging_expected"])
+    if mission == "Sentinel-1":
+        warnings.append(
+            {
+                "code": "sar_nominal_geometry",
+                "message": "Sentinel-1 footprint and incidence are nominal mode geometry; acquisition planning and imagery remain separate facts.",
+            }
+        )
+    imaging_label = (
+        "Radar imaging eligible"
+        if mission == "Sentinel-1" and expected
+        else (
+            "Radar imaging not expected"
+            if mission == "Sentinel-1"
+            else ("Imaging expected" if expected else "Imaging not expected")
+        )
+    )
     return {
         "geometry": "intersects",
         "imaging": "expected" if expected else "not_expected",
-        "imaging_label": "Imaging expected" if expected else "Imaging not expected",
+        "imaging_label": imaging_label,
         "acquisition": acquisition,
         "acquisition_label": acquisition_label,
         "orbital_data": freshness,

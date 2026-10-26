@@ -85,7 +85,7 @@ input[type="checkbox"]{width:auto}
 #passDetails{font-size:.8rem;line-height:1.6;border-top:1px solid var(--line);padding-top:10px}
 #passDetails p{margin:5px 0}
 #resultCount{font-size:.76rem;color:var(--muted);margin:6px 0}
-.chip.aged,.chip.stale,.chip.unknown,.chip.not_expected,.chip.planned_other{color:var(--warn)}
+.chip.aged,.chip.stale,.chip.unknown,.chip.not_expected,.chip.planned_other,.chip.planned{color:var(--warn)}
 .chip{font:500 .64rem var(--f-body);letter-spacing:.06em;text-transform:uppercase;padding:1px 5px;border:1px solid currentColor;border-radius:2px}
 .chip.no{color:var(--warn)}
 .empty{font-size:.82rem;color:var(--muted);padding:8px 0;border-top:1px solid var(--line)}
@@ -137,7 +137,7 @@ footer .old{color:var(--warn)}
           <label>Acquisition evidence<select id="filterPlan">
             <option value="">All statuses</option><option value="planned_nominal">Planned (nominal)</option>
             <option value="planned_other">Planned (other mode)</option><option value="not_planned">No plan match</option>
-            <option value="unknown">Unknown (no plan loaded)</option><option value="not_checked">Not checked (Landsat)</option>
+            <option value="unknown">Unknown (no plan loaded)</option><option value="planned">Planned</option><option value="not_checked">Not checked (Landsat)</option>
           </select></label>
           <label>Imaging eligibility<select id="filterImaging"><option value="">All passes</option><option value="expected">Expected</option><option value="not_expected">Not expected</option></select></label>
           <label>Sort passes<select id="sortPasses"><option value="soonest">Soonest</option><option value="coverage">Highest coverage</option></select></label>
@@ -201,6 +201,37 @@ function dest(lat, lon, az, km){
   const l2 = l1 + Math.atan2(Math.sin(t) * Math.sin(d) * Math.cos(p1), Math.cos(d) - Math.sin(p1) * Math.sin(p2));
   return [((l2 * R2D + 540) % 360) - 180, p2 * R2D];
 }
+function unit(v){ const n=Math.hypot(v.x,v.y,v.z); return {x:v.x/n,y:v.y/n,z:v.z/n}; }
+function add(a,b,k){ return {x:a.x+k*b.x,y:a.y+k*b.y,z:a.z+k*b.z}; }
+function dot(a,b){ return a.x*b.x+a.y*b.y+a.z*b.z; }
+function sarEdge(s, d, state = null){
+  const pv = satellite.propagate(s.rec, d), gmst = satellite.gstime(d);
+  if (!pv || !pv.position || !pv.velocity) return [];
+  const p = state ? state.position : satellite.eciToEcf(pv.position, gmst), omega = 7.2921151467e-5;
+  const inertialFixed = {x:pv.velocity.x + omega * pv.position.y, y:pv.velocity.y - omega * pv.position.x, z:pv.velocity.z};
+  const v = state ? state.velocity : satellite.eciToEcf(inertialFixed, gmst);
+  const pn = unit(p), track = unit(v);
+  let nadir = {x:-pn.x,y:-pn.y,z:-pn.z};
+  const nd = dot(nadir, track); nadir = unit({x:nadir.x-nd*track.x,y:nadir.y-nd*track.y,z:nadir.z-nd*track.z});
+  const right = unit({x:nadir.y*track.z-nadir.z*track.y,y:nadir.z*track.x-nadir.x*track.z,z:nadir.x*track.y-nadir.y*track.x});
+  const cfg = s.sensor_config, rows = cfg.look_angle_limits_by_altitude_deg;
+  const geodetic = satellite.eciToGeodetic(pv.position, gmst);
+  const limits = cfg.altitude_limits_km;
+  const h = Math.max(limits[0], Math.min(limits[1], state ? state.altitude : geodetic.height)), f = (h-limits[0])/(limits[1]-limits[0]);
+  const angles = [rows[0][0]*(1-f)+rows[1][0]*f, rows[0][1]*(1-f)+rows[1][1]*f];
+  const a2=6378.137**2,b2=6356.752314245**2, out=[];
+  for (const deg of angles){
+    const q=deg*D2R, ray={x:Math.cos(q)*nadir.x+Math.sin(q)*right.x,y:Math.cos(q)*nadir.y+Math.sin(q)*right.y,z:Math.cos(q)*nadir.z+Math.sin(q)*right.z};
+    const A=ray.x*ray.x/a2+ray.y*ray.y/a2+ray.z*ray.z/b2, B=2*(p.x*ray.x/a2+p.y*ray.y/a2+p.z*ray.z/b2), C=p.x*p.x/a2+p.y*p.y/a2+p.z*p.z/b2-1;
+    const disc=B*B-4*A*C;
+    if (disc < 0) return [];
+    const t=(-B-Math.sqrt(disc))/(2*A);
+    if (t < 0) return [];
+    const hit=add(p,ray,t), eci=satellite.ecfToEci(hit,gmst), g=satellite.eciToGeodetic(eci,gmst);
+    out.push([g.longitude*R2D,g.latitude*R2D]);
+  }
+  return out;
+}
 function subsolar(d){
   const n = d.getTime() / 86400000 + 2440587.5 - 2451545.0;
   const L = ((280.460 + 0.9856474 * n) % 360) * D2R, g = ((357.528 + 0.9856003 * n) % 360) * D2R;
@@ -218,6 +249,12 @@ function computeTrack(s, now){
   s.track = pts;
 }
 function computeSwath(s, now){
+  const sar = s.footprint_model === "sar_side_looking" || s.geometry === "right_looking_sar";
+  if (sar){
+    const L=[],R=[];
+    for (let sec=-180; sec<=180; sec+=10){ const d=new Date(now.getTime()+sec*1000), e=sarEdge(s,d); if(e.length===2){ L.push(e[0]); R.push(e[1]); } }
+    return L.concat(R.reverse());
+  }
   const half = s.swath_km / 2, L = [], R = [];
   let prev = null;
   for (let sec = -180; sec <= 180; sec += 10){
@@ -470,7 +507,18 @@ function selectPass(id){
   const detail = document.getElementById("passDetails");
   detail.innerHTML = p ? `<strong>${esc(p.sat)} · ${fmtLocDay.format(p.tca)} · ${esc(P.tz)}</strong>`
     + `<p>Crossing: ${fmtLoc.format(p.tin)} – ${fmtLoc.format(p.tout)} local. Closest approach: ${esc(p.ca)} UTC.</p>`
-    + `<p>${p.cov.toFixed(1)}% ROI coverage · view angle ${p.view_angle_deg.toFixed(2)}° · sun elevation ${p.sun_elevation_deg.toFixed(1)}° · anchor edge margin ${p.edge_margin_km.toFixed(1)} km.</p>`
+    + `<p>${p.cov.toFixed(1)}% ROI coverage`
+    + (p.view_angle_deg == null ? "" : ` · view angle ${p.view_angle_deg.toFixed(2)}°`)
+    + (p.incidence_angle_deg == null ? "" : ` · incidence angle ${p.incidence_angle_deg.toFixed(1)}°`)
+    + (p.sun_elevation_deg == null ? "" : ` · sun elevation ${p.sun_elevation_deg.toFixed(1)}°`)
+    + (p.edge_margin_km == null ? "" : ` · anchor edge margin ${p.edge_margin_km.toFixed(1)} km`)
+    + (p.mode ? ` · mode ${esc(p.mode)}` : "")
+    + (p.look_side ? ` · look ${esc(p.look_side)}` : "") + `.</p>`
+    + ((p.esa_mode || p.esa_polarisation || p.esa_relative_orbit != null || p.esa_plan_file) ? `<p>ESA match:`
+      + (p.esa_mode ? ` mode ${esc(p.esa_mode)}` : "")
+      + (p.esa_polarisation ? ` · ${esc(p.esa_polarisation)}` : "")
+      + (p.esa_relative_orbit == null ? "" : ` · relative orbit ${p.esa_relative_orbit}`)
+      + (p.esa_plan_file ? ` · ${esc(p.esa_plan_file)}` : "") + `</p>` : "")
     + `<div class="statuses">${statusChips(p)}</div><p>${p.status.warnings.map(w => esc(w.message)).join(" ")}</p>`
     + `<p>The dashed outline is the exported display footprint. Acquisition, available imagery and cloud-free conditions are not guaranteed.</p>`
     : "Select a pass to inspect its footprint and timing.";
@@ -505,7 +553,7 @@ function renderFoot(now){
   document.getElementById("foot").innerHTML =
     `TLE age now: ${ages.join(" · ")}<br>Report generated ${esc(P.generated.replace("T", " ").replace("Z", " UTC"))}. `
     + `Pass age labels compare elements with each pass, not with today. Fresh ≤7 d; aged ≤14 d; stale >14 d. These are refresh reminders, not accuracy estimates. `
-    + `Positions and nominal live swaths are propagated in your browser. Missing ESA plans mean unknown acquisition. Landsat acquisition and imagery availability are not checked.`;
+    + `Positions and nominal sensor footprints are propagated in your browser. Missing ESA plans mean unknown acquisition; a plan does not guarantee imagery.`;
 }
 
 // ---------- interaction

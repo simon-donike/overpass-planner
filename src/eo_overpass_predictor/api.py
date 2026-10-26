@@ -12,7 +12,12 @@ from .core.orbits import SATELLITE_CATALOGUE as SATELLITE_CATALOGUE
 from .core.orbits import satellite_positions as satellite_positions
 from .core.orbits import solar_elevation_deg as solar_elevation_deg
 from .core.orbits import subsolar_point as subsolar_point
-from .core.plans import crosscheck_s2_acquisition_plan as crosscheck_s2_acquisition_plan
+from .core.plans import (
+    crosscheck_acquisition_plan as crosscheck_acquisition_plan,
+)
+from .core.plans import (
+    crosscheck_s2_acquisition_plan as crosscheck_s2_acquisition_plan,
+)
 from .core.prediction import predict_overpasses as predict_overpasses
 from .core.reporting import next_overpasses as next_overpasses
 from .core.reporting import process_timer as process_timer
@@ -20,7 +25,11 @@ from .core.reporting import summarise_overpasses as summarise_overpasses
 from .io.export import export_live_tracker_html as export_live_tracker_html
 from .io.export import export_overpass_csv as export_overpass_csv
 from .io.export import export_overpass_footprints as export_overpass_footprints
+from .io.plans import fetch_acquisition_plans as fetch_acquisition_plans
+from .io.plans import fetch_s1_acquisition_plans as fetch_s1_acquisition_plans
 from .io.plans import fetch_s2_acquisition_plans as fetch_s2_acquisition_plans
+from .io.plans import load_acquisition_plans as load_acquisition_plans
+from .io.plans import load_s1_acquisition_plans as load_s1_acquisition_plans
 from .io.plans import load_s2_acquisition_plans as load_s2_acquisition_plans
 from .io.roi import load_roi as load_roi
 from .io.tles import fetch_tles as fetch_tles
@@ -53,7 +62,12 @@ __all__ = [
     "subsolar_point",
     "satellite_positions",
     "fetch_s2_acquisition_plans",
+    "fetch_s1_acquisition_plans",
+    "fetch_acquisition_plans",
+    "load_acquisition_plans",
+    "load_s1_acquisition_plans",
     "load_s2_acquisition_plans",
+    "crosscheck_acquisition_plan",
     "crosscheck_s2_acquisition_plan",
     "export_overpass_csv",
     "export_overpass_footprints",
@@ -70,16 +84,28 @@ __all__ = [
 def list_satellites(mission: str | None = None) -> pd.DataFrame:
     """Return supported instruments, short aliases and NORAD identifiers.
 
-    ``mission`` optionally selects ``Landsat`` or ``Sentinel-2`` (case insensitive).
+    ``mission`` optionally selects ``Landsat``, ``Sentinel-1`` or ``Sentinel-2``.
     The returned table is independent of the catalogue dictionaries.
     """
-    aliases = dict(zip(SATELLITE_CATALOGUE, ["L8", "L9", "S2A", "S2B", "S2C"], strict=True))
-    if mission is not None and mission.lower() not in {"landsat", "sentinel-2"}:
-        raise ValueError("mission must be Landsat or Sentinel-2.")
+
+    def alias(name: str) -> str:
+        """Derive the stable short alias from the catalogue's mission/unit name."""
+        compact = name.upper().replace(" ", "")
+        if compact.startswith("LANDSAT"):
+            return "L" + compact.removeprefix("LANDSAT")
+        if compact.startswith("SENTINEL-"):
+            return "S" + compact.removeprefix("SENTINEL-")
+        return compact
+
+    aliases = {name: alias(name) for name in SATELLITE_CATALOGUE}
+    mission_key = mission.strip().lower().replace("_", "-") if mission is not None else None
+    allowed = {"landsat", "sentinel-2", "sentinel-1"}
+    if mission_key is not None and mission_key not in allowed:
+        raise ValueError("mission must be Landsat, Sentinel-1 or Sentinel-2.")
     return pd.DataFrame(
         [
             {"satellite": name, "alias": aliases[name], **record}
             for name, record in SATELLITE_CATALOGUE.items()
-            if mission is None or record["mission"].lower() == mission.lower()
+            if mission_key is None or record["mission"].lower() == mission_key
         ]
     )

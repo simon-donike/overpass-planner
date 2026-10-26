@@ -2,7 +2,7 @@
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23629976.svg)](https://doi.org/10.5281/zenodo.23629976)
 
-Predict when the instrument swath of **Landsat 8/9 or Sentinel-2A/B/C** intersects a region of interest. Results include ROI coverage, entry/exit and closest-approach times, UTC and DST-aware local times, illumination, viewing geometry, and TLE age. Sentinel-2 predictions can be checked against ESA acquisition plans.
+Predict when the instrument swath of **Landsat 8/9, Sentinel-2A/B/C, or Sentinel-1C/D** intersects a region of interest. Results include ROI coverage, entry/exit and closest-approach times, UTC and DST-aware local times, illumination, viewing geometry, and TLE age. Sentinel-1 and Sentinel-2 predictions can be checked against ESA acquisition plans.
 
 The scientific implementation is by **Julian Manning**. This development version packages that implementation for Python, the command line, and notebooks. It preserves the original orbital methodology; packaging regression tests are separate from independent validation against real acquisitions.
 
@@ -45,7 +45,7 @@ from eo_overpass_predictor import (
 )
 
 roi = load_roi((144.35, -38.35, 145.15, -37.80), name="Port_Phillip_Bay")
-tles = fetch_tles(satellites=["S2B"])  # Downloads/caches public TLEs.
+tles = fetch_tles(satellites=["S2B"])  # Use "S1" for Sentinel-1C/D.
 passes = predict_overpasses(
     roi,
     tles,
@@ -88,6 +88,10 @@ uv run eo-overpass predict \
 
 uv run eo-overpass predict \
   --roi area.geojson --start 2026-11-01 --end 2026-11-15 \
+  --satellite S1 --s1-mode IW --output sentinel1.csv
+
+uv run eo-overpass predict \
+  --roi area.geojson --start 2026-11-01 --end 2026-11-15 \
   --satellite S2B S2C --min-coverage 25 --plans DATA/KML \
   --output footprints.gpkg
 
@@ -96,7 +100,7 @@ uv run eo-overpass tracker \
   --satellite LS --output live_tracker.html
 ```
 
-Use `next --help`, `predict --help` or `tracker --help` for all options. `--satellite S2` selects Sentinel-2A/B/C; `--satellite LS` selects Landsat 8/9. Multiple values can follow one option (`--satellite S2B S2C` or `--satellite S2 LS`), ending at the next option. Comma-separated values and repeated options also work. Names and group aliases are case insensitive; full names containing spaces must be quoted, and NORAD IDs are accepted. Overlapping selections are included only once, in first-selected order. Omitting the option selects all five satellites. `--timezone` overrides automatic ROI-local timezone selection. `--all-passes` includes night/ascending geometric passes. Output suffixes select CSV, GeoJSON, GeoPackage or HTML; explicit `--format` must agree with the suffix.
+Use `next --help`, `predict --help` or `tracker --help` for all options. `--satellite S2` selects Sentinel-2A/B/C, `--satellite S1` selects Sentinel-1C/D, and `--satellite LS` selects Landsat 8/9. Multiple values can follow one option (`--satellite S1 S2`), ending at the next option. Comma-separated values and repeated options also work. Names and group aliases are case insensitive; full names containing spaces must be quoted, and NORAD IDs are accepted. Overlapping selections are included only once, in first-selected order. Omitting the option selects all seven satellites. `--s1-mode` chooses Sentinel-1 IW or EW (IW is the default). `--timezone` overrides automatic ROI-local timezone selection. `--all-passes` includes night/ascending optical geometric passes; Sentinel-1 is day/night and ascending/descending by design. Output suffixes select CSV, GeoJSON, GeoPackage or HTML; explicit `--format` must agree with the suffix.
 
 `--plans` uses local KML/KMZ files or a directory. `--fetch-plans` explicitly retrieves ESA plans and cannot be combined with `--plans` or `--offline`. Missing optional plans yield **no plan loaded**, which means unknown acquisition status. Exit codes are 0 for success (including an empty prediction), 2 for invalid inputs, and 1 for operational failures.
 
@@ -110,7 +114,7 @@ Installing from PyPI does not require storing data in `/tmp` or inside the insta
 
 Default download roots follow [platformdirs](https://platformdirs.readthedocs.io/en/latest/api.html): typically `~/.cache/eo-overpass-predictor` on Linux (honouring `XDG_CACHE_HOME`), `~/Library/Caches/eo-overpass-predictor` on macOS, and the user local application cache on Windows. `cache info` prints the actual location. Override with CLI `--cache-dir`, or API `tle_dir`/`plan_dir` for individual directories.
 
-- **TLEs:** one file per satellite, at most five stable filenames. New elements replace previous ones atomically. Fresh entries are reused for 12 hours; stale entries remain available with warnings for offline/network-failure fallback.
+- **TLEs:** one file per satellite, at most seven stable filenames. New elements replace previous ones atomically. Fresh entries are reused for 12 hours; stale entries remain available with warnings for offline/network-failure fallback.
 - **ESA plans:** after successful online retrieval, the default cache removes downloads older than 30 days, then the oldest remaining files toward a 50 MiB budget. Files returned for the current request are protected, including historical plans; they may temporarily exceed the budget. Offline loading does not prune files. Explicit `plan_dir` and `--cache-dir` overrides are not automatically pruned.
 - **Temporary mode:** add `--no-cache` to `next`, `predict` or `tracker`. Downloads use a unique system temporary directory, removed on normal completion or Python errors. It ignores persistent caches, so `--offline --no-cache` requires supplied TLEs for every selected satellite. It cannot be combined with `--cache-dir`.
 - **Outputs:** CSV, GeoJSON, GeoPackage and HTML remain at `--output` until you remove them. Supplied ROI/TLE/plan files are read as inputs. Cache management never searches output directories or unrelated folders.
@@ -192,20 +196,22 @@ uv run eo-overpass next --roi examples/data/railroad_valley_usa.geojson --satell
 | Sentinel-2A | S2A | 40697 | MSI | 290 km |
 | Sentinel-2B | S2B | 42063 | MSI | 290 km |
 | Sentinel-2C | S2C | 60989 | MSI | 290 km |
+| Sentinel-1C | S1C | 62261 | C-SAR | IW/EW, right-looking |
+| Sentinel-1D | S1D | 66315 | C-SAR | IW/EW, right-looking |
 
-The original engine uses Skyfield SGP4 propagation, WGS84 geodesic cross-track scan lines, an ROI-centred Lambert azimuthal equal-area projection, a 30-second coarse scan and 1-second refinement. Closest approach uses the original parabolic refinement and 0.1-second rounding. Expected imaging defaults to descending, sunlit passes inside the original mission latitude limits. The timescale uses bundled Skyfield data; no planetary ephemeris download is needed.
+The optical engine uses Skyfield SGP4 propagation, WGS84 geodesic cross-track scan lines, an ROI-centred Lambert azimuthal equal-area projection, a 30-second coarse scan and 1-second refinement. Closest approach uses the original parabolic refinement and 0.1-second rounding. Sentinel-1 uses the same pipeline with a nominal right-looking SAR footprint on the WGS84 ellipsoid. IW and EW near/far look angles use the published 698–726 km altitude roll tables, clamped outside that range. Sentinel-1 is eligible day and night on ascending or descending passes; solar thresholds apply only to optical sensors. This is nominal geometric capability, not a guarantee of acquisition or available imagery.
 
 The original sampling convention includes window endpoints and may include a final fine-grid sample beyond a fractional endpoint. The refactor does not apply a new half-open-window filter. At least one fine time step is required; steps must be finite, positive, and fine must not exceed coarse.
 
-Geometry indicates that an instrument **can** image an ROI. Acquisition, processing, delivery, and cloud-free imagery are not guaranteed. Landsat plans are not verified. ESA KML footprints are simplified; edge passes can appear unplanned despite an overlapping datatake. Fresh TLEs are important, especially after orbital manoeuvres. Treat swath-edge margins of approximately ±5 km as uncertain.
+Geometry indicates that an instrument **can** image an ROI. Acquisition, processing, delivery, and cloud-free imagery are not guaranteed. Landsat plans are not verified. ESA KML footprints are simplified; edge passes can appear unplanned despite an overlapping datatake. Fresh TLEs are important, especially after orbital manoeuvres. Treat swath-edge margins of approximately ±5 km as uncertain. A missing Sentinel-1 or Sentinel-2 plan means unknown acquisition; a loaded plan with no match means not planned.
 
-Use compact ROIs. Very large, polar, or antimeridian-spanning prediction ROIs retain the original projection/swath limitations; antimeridian handling in ESA plan matching does not establish general global prediction accuracy. The model supports nadir-centred optical sensors, not side-looking SAR. Mission-status notes in catalogue output are preserved from October 2026 and are dated context, not a continuously updated operational feed.
+Use compact ROIs. Very large, polar, or antimeridian-spanning prediction ROIs retain the original projection/swath limitations; antimeridian handling in ESA plan matching does not establish general global prediction accuracy. Sentinel-1 footprints are nominal right-looking geometry and do not model terrain, burst timing, Stripmap or Wave mode. Mission-status notes in catalogue output are preserved from October 2026 and are dated context, not a continuously updated operational feed.
 
 ## Inputs, results and exports
 
 `load_roi` accepts vector file paths, GeoDataFrames/GeoSeries in a declared CRS, Shapely geometries, supported WKT strings, `(lon, lat)` points, `(west, south, east, north)` bounds, and GeoJSON geometry/Feature/FeatureCollection mappings. In-memory geometry, WKT, tuples and GeoJSON mappings use WGS84 longitude/latitude. Missing CRS in a geospatial frame produces a warning and assumes EPSG:4326. Features are dissolved and invalid geometry is repaired; empty or out-of-range coordinates are rejected. An optional nonnegative buffer is applied in the original local equal-area projection.
 
-Predictions are EPSG:4326 GeoDataFrames, one row per overpass, sorted by closest-approach time. Their `attrs` contain `roi_name`, `timezone`, `window_start_utc`, and `window_end_utc`. Empty results retain the schema and timezone-aware time columns.
+Predictions are EPSG:4326 GeoDataFrames, one row per overpass, sorted by closest-approach time. Their `attrs` contain `roi_name`, `timezone`, `window_start_utc`, `window_end_utc`, and the resolved `s1_mode`. Empty results retain the schema and timezone-aware time columns.
 
 | Columns | Meaning |
 |---|---|
@@ -213,10 +219,10 @@ Predictions are EPSG:4326 GeoDataFrames, one row per overpass, sorted by closest
 | `direction`, `imaging_expected`, `roi_coverage_pct` | Acquisition filter and fraction of the ROI covered; points report 100% when intersected. |
 | `roi_entry_utc`, `overpass_utc`, `roi_exit_utc`, `duration_s` | Swath intersection window and refined closest approach. |
 | `roi_entry_local`, `overpass_local`, `roi_exit_local`, `timezone`, `utc_offset` | The same instants in the ROI IANA zone with per-date DST offsets. |
-| `nadir_offset_km`, `roi_side_of_track`, `edge_margin_km`, `view_angle_deg` | Viewing geometry relative to the ROI anchor. |
+| `nadir_offset_km`, `roi_side_of_track`, `edge_margin_km`, `view_angle_deg` | Viewing geometry relative to the ROI anchor; Sentinel-1 also reports `s1_mode`, `look_side` and `incidence_angle_deg`. |
 | `max_elevation_deg`, `sun_elevation_deg`, `sat_altitude_km` | Elevation, illumination and altitude. |
 | `tle_epoch_utc`, `tle_age_days`, `note`, `geometry` | Orbital provenance, dated mission context and display swath footprint. |
-| `esa_plan_status`, `esa_datatake_id`, `esa_relative_orbit` | Added by acquisition-plan cross-checking. |
+| `esa_plan_status`, `esa_datatake_id`, `esa_relative_orbit`, `esa_mode`, `esa_polarisation` | Added by acquisition-plan cross-checking. Sentinel-1 matching reports `planned` for a covering user plan. |
 
 CSV export omits geometry, preserves original whole-second ISO timestamp serialization (`Z` for UTC and explicit local offsets), and adds `local_date`, `local_time` and `local_weekday`. Structured API results retain subsecond closest-approach timestamps. GeoJSON/GeoPackage export includes footprints and serializes timezone-aware attributes to strings. The legacy shapefile exporter also remains available through the API, subject to that format's field-name and type limits.
 
@@ -267,6 +273,6 @@ Plain `uv sync` installs base and development dependencies. Optional-feature tes
 
 The original [CITATION.cff](CITATION.cff), version 1.0.0 citation and [Zenodo DOI](https://doi.org/10.5281/zenodo.23629976) remain intact. The development package version is distinct from that archived scientific release. The [MIT license](LICENSE) and original copyright notice are unchanged.
 
-Data attribution: orbital elements from [CelesTrak](https://celestrak.org/); acquisition plans © ESA from its [Sentinel-2 plans page](https://sentinels.copernicus.eu/copernicus/sentinel-2/acquisition-plans); embedded Natural Earth 1:50m coastlines (public domain), via world-atlas. Key software includes [Skyfield](https://rhodesmill.org/skyfield/), [satellite.js](https://github.com/shashwatak/satellite-js), and [timezonefinder](https://github.com/jannikmi/timezonefinder).
+Data attribution: orbital elements from [CelesTrak](https://celestrak.org/); acquisition plans © ESA from its [Sentinel-1](https://sentinels.copernicus.eu/copernicus/sentinel-1/acquisition-plans) and [Sentinel-2](https://sentinels.copernicus.eu/copernicus/sentinel-2/acquisition-plans) pages; embedded Natural Earth 1:50m coastlines (public domain), via world-atlas. Key software includes [Skyfield](https://rhodesmill.org/skyfield/), [satellite.js](https://github.com/shashwatak/satellite-js), and [timezonefinder](https://github.com/jannikmi/timezonefinder).
 
 Related original projects: [CDSE Sentinel-2 pipeline](https://github.com/julianManning/cdse-sentinel2-pipeline) and [CDSE Sentinel-1 pipeline](https://github.com/julianManning/cdse-sentinel1-pipeline).

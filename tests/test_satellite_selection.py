@@ -14,6 +14,7 @@ from eo_overpass_predictor.core.orbits import _resolve_satellites
 
 SENTINELS = ["SENTINEL-2A", "SENTINEL-2B", "SENTINEL-2C"]
 LANDSATS = ["LANDSAT 8", "LANDSAT 9"]
+S1 = ["SENTINEL-1C", "SENTINEL-1D"]
 
 
 @pytest.mark.parametrize(
@@ -25,6 +26,8 @@ LANDSATS = ["LANDSAT 8", "LANDSAT 9"]
         ("LS", LANDSATS),
         ("ls", LANDSATS),
         ("Landsat", LANDSATS),
+        ("S1", S1),
+        ("Sentinel-1", S1),
         (["S2", "LS"], SENTINELS + LANDSATS),
         ("S2B,L9", ["SENTINEL-2B", "LANDSAT 9"]),
         ("42063, 49260", ["SENTINEL-2B", "LANDSAT 9"]),
@@ -43,6 +46,12 @@ def test_group_expansion_and_ordered_deduplication(selection, expected):
 def test_invalid_group_or_empty_member(selection):
     with pytest.raises(ValueError):
         _resolve_satellites(selection)
+
+
+def test_api_lists_sentinel1_aliases():
+    table = api.list_satellites("Sentinel-1")
+    assert table["satellite"].tolist() == S1
+    assert table["alias"].tolist() == ["S1C", "S1D"]
 
 
 @pytest.mark.parametrize(("group", "expected"), [("S2", SENTINELS), ("LS", LANDSATS)])

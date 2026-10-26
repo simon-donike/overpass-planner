@@ -38,14 +38,15 @@ from pathlib import Path
 _fixture_dir = Path({json.dumps(str(FIXTURES.resolve()))})
 _fetch = eo.fetch_tles
 _predict = eo.predict_overpasses
-_load_plans = eo.load_s2_acquisition_plans
+_load_plans = eo.load_acquisition_plans
 
 def _no_http(*args, **kwargs):
     raise AssertionError("Notebook attempted a network request")
 requests.sessions.Session.request = _no_http
 
 def _fixed_tles(*args, **kwargs):
-    kwargs.update(tle_text=(_fixture_dir / "satellites.tle").read_text(), offline=True)
+    text = (_fixture_dir / "satellites.tle").read_text() + "\\n" + (_fixture_dir / "sentinel1.tle").read_text()
+    kwargs.update(tle_text=text, offline=True)
     return _fetch(*args, **kwargs)
 
 def _fixed_predictions(*args, **kwargs):
@@ -54,8 +55,12 @@ def _fixed_predictions(*args, **kwargs):
 
 eo.fetch_tles = _fixed_tles
 eo.predict_overpasses = _fixed_predictions
-eo.fetch_s2_acquisition_plans = lambda *args, **kwargs: list(_fixture_dir.glob("*.kml"))
-eo.load_s2_acquisition_plans = lambda *args, **kwargs: _load_plans(list(_fixture_dir.glob("*.kml")))
+_plan_files = list(_fixture_dir.rglob("*.kml"))
+eo.fetch_acquisition_plans = lambda *args, **kwargs: _plan_files
+eo.fetch_s1_acquisition_plans = lambda *args, **kwargs: _plan_files
+eo.fetch_s2_acquisition_plans = lambda *args, **kwargs: _plan_files
+eo.load_acquisition_plans = lambda *args, **kwargs: _load_plans(_plan_files)
+eo.load_s2_acquisition_plans = lambda *args, **kwargs: _load_plans(_plan_files)
 """
     notebook.cells.insert(0, nbformat.v4.new_code_cell(setup))
     client = NotebookClient(

@@ -14,7 +14,10 @@ from ..core.orbits import SATELLITE_CATALOGUE
 
 PLAN_MAX_AGE_DAYS = 30
 PLAN_MAX_BYTES = 50 * 1024 * 1024
-_PLAN_NAME = re.compile(r"s2[abc]_mp_acq__kml_\d{8}t\d{6}_\d{8}t\d{6}\.(?:kml|kmz)", re.I)
+_PLAN_NAME = re.compile(
+    r"(?:s2[abc]_mp_acq__kml|s1[cd]_mp_user)_\d{8}t\d{6}_\d{8}t\d{6}\.(?:kml|kmz)",
+    re.I,
+)
 _TLE_NAMES = {f"{record['norad_id']}.tle" for record in SATELLITE_CATALOGUE.values()}
 
 

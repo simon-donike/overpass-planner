@@ -1,4 +1,4 @@
-"""Swath-aware Landsat / Sentinel-2 prediction. Original science: Julian Manning."""
+"""Swath-aware Landsat and Sentinel-1/2 prediction. Original science: Julian Manning."""
 
 from importlib.metadata import version
 

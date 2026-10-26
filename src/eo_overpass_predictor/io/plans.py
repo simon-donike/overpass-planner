@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import warnings
 import xml.etree.ElementTree as ET
 import zipfile
 from collections.abc import Iterable
@@ -22,8 +23,10 @@ from ..types import DateInput, SatelliteSelection
 from .cache import cache_root, prune_plan_cache, write_cache_file
 
 ESA_S2_PLAN_PAGE = "https://sentinels.copernicus.eu/copernicus/sentinel-2/acquisition-plans"
+ESA_S1_PLAN_PAGE = "https://sentinels.copernicus.eu/copernicus/sentinel-1/acquisition-plans"
 ESA_BASE_URL = "https://sentinels.copernicus.eu"
 _PLAN_RE = re.compile(r"(s2[abc])_mp_acq__kml_(\d{8}t\d{6})_(\d{8}t\d{6})", re.I)
+_S1_PLAN_RE = re.compile(r"(s1[cd])_mp_user_(\d{8}t\d{6})_(\d{8}t\d{6})", re.I)
 
 
 def fetch_s2_acquisition_plans(
@@ -140,11 +143,179 @@ def fetch_s2_acquisition_plans(
     return paths
 
 
+def fetch_s1_acquisition_plans(
+    plan_dir: str | Path | None = None,
+    start_utc: DateInput | None = None,
+    end_utc: DateInput | None = None,
+    satellites: SatelliteSelection = ("S1C", "S1D"),
+    timeout: int = 90,
+    verbose: bool = True,
+) -> list[Path]:
+    """Download Sentinel-1 user acquisition plans overlapping a time window."""
+    managed_cache = plan_dir is None
+    directory = Path(plan_dir) if plan_dir is not None else cache_root() / "plans"
+    directory.mkdir(parents=True, exist_ok=True)
+    start = _to_utc_timestamp(start_utc) if start_utc is not None else pd.Timestamp.now(tz="UTC")
+    end = _to_utc_timestamp(end_utc) if end_utc is not None else start + pd.Timedelta(days=16)
+    if end <= start:
+        raise ValueError("end_utc must be later than start_utc.")
+    if timeout <= 0:
+        raise ValueError("timeout must be positive.")
+    names = _resolve_satellites(satellites)
+    if any(not s.startswith("SENTINEL-1") for s in names):
+        raise ValueError("ESA acquisition plans support Sentinel-1 satellites only.")
+    wanted = {s.replace("SENTINEL-", "S").lower() for s in names}
+    response = requests.get(ESA_S1_PLAN_PAGE, timeout=timeout)
+    response.raise_for_status()
+    links = {}
+    for m in re.finditer(
+        r'href="([^"]*?(s1[cd])_mp_user_(\d{8}t\d{6})_(\d{8}t\d{6})[^" ]*)"',
+        response.text,
+        re.I,
+    ):
+        href, sat, a, b = m.groups()
+        if sat.lower() not in wanted:
+            continue
+        p0 = pd.Timestamp(datetime.strptime(a.lower(), "%Y%m%dt%H%M%S"), tz="UTC")
+        p1 = pd.Timestamp(datetime.strptime(b.lower(), "%Y%m%dt%H%M%S"), tz="UTC")
+        if p1 < start or p0 > end:
+            continue
+        links[f"{sat.lower()}_mp_user_{a.lower()}_{b.lower()}"] = (
+            href if href.startswith("http") else ESA_BASE_URL + href
+        )
+    paths, failed = [], []
+    for stem, url in sorted(links.items()):
+        path = directory / f"{stem}.kml"
+        if path.exists():
+            paths.append(path)
+            continue
+        base = url.split("?")[0]
+        plain = f"{ESA_BASE_URL}/documents/d/sentinel/{stem}"
+        candidates = list(
+            dict.fromkeys([url, base + "?download=true", plain, plain + "?download=true"])
+        )
+        last_err = None
+        for candidate in candidates:
+            try:
+                r = requests.get(candidate, timeout=timeout)
+                r.raise_for_status()
+                if b"<kml" not in r.content[:2000] and r.content[:2] != b"PK":
+                    raise ValueError("response is not KML/KMZ")
+                write_cache_file(path, r.content)
+                paths.append(path)
+                break
+            except Exception as exc:
+                last_err = exc
+        else:
+            failed.append(stem)
+            if verbose:
+                print(f"\x1b[93m⚠ {stem}: download failed ({type(last_err).__name__})\x1b[0m")
+    if failed and verbose:
+        print(f"\x1b[93m⚠ {len(failed)} Sentinel-1 plan file(s) unavailable.\x1b[0m")
+    if managed_cache:
+        prune_plan_cache(directory.parent, protected=paths)
+    return paths
+
+
+def fetch_acquisition_plans(
+    plan_dir: str | Path | None = None,
+    start_utc: DateInput | None = None,
+    end_utc: DateInput | None = None,
+    satellites: SatelliteSelection | None = None,
+    timeout: int = 90,
+    verbose: bool = True,
+) -> list[Path]:
+    """Fetch all requested Sentinel-1/2 plans through mission-specific adapters.
+
+    Landsat is intentionally rejected because this adapter only handles ESA plans.
+    If both missions are selected, each mission's page is requested independently
+    and the resulting paths are combined.
+    """
+    selection = satellites if satellites is not None else ("S1C", "S1D", "S2A", "S2B", "S2C")
+    names = _resolve_satellites(selection)
+    if any(not name.startswith("SENTINEL-") for name in names):
+        raise ValueError("ESA acquisition plans support Sentinel-1 and Sentinel-2 only.")
+    paths: list[Path] = []
+    failures: list[str] = []
+    managed_cache = plan_dir is None
+    common_dir = Path(plan_dir) if plan_dir is not None else cache_root() / "plans"
+    common_dir.mkdir(parents=True, exist_ok=True)
+    s1 = [name for name in names if name.startswith("SENTINEL-1")]
+    s2 = [name for name in names if name.startswith("SENTINEL-2")]
+    if s1:
+        try:
+            paths.extend(
+                fetch_s1_acquisition_plans(common_dir, start_utc, end_utc, s1, timeout, verbose)
+            )
+        except (requests.RequestException, RuntimeError, OSError) as exc:
+            failures.append(f"Sentinel-1: {exc}")
+            fallback = common_dir
+            paths.extend(
+                sorted(
+                    list(fallback.glob("s1[cd]_mp_user_*.kml"))
+                    + list(fallback.glob("s1[cd]_mp_user_*.kmz"))
+                )
+            )
+    if s2:
+        try:
+            paths.extend(
+                fetch_s2_acquisition_plans(common_dir, start_utc, end_utc, s2, timeout, verbose)
+            )
+        except (requests.RequestException, RuntimeError, OSError) as exc:
+            failures.append(f"Sentinel-2: {exc}")
+            fallback = common_dir
+            paths.extend(
+                sorted(
+                    list(fallback.glob("s2[abc]_mp_acq__kml_*.kml"))
+                    + list(fallback.glob("s2[abc]_mp_acq__kml_*.kmz"))
+                )
+            )
+    if failures:
+        message = "ESA plan retrieval failed: " + "; ".join(failures)
+        if paths:
+            warnings.warn(message + "; using available plans.", UserWarning, stacklevel=2)
+        else:
+            raise RuntimeError(message)
+    if managed_cache:
+        prune_plan_cache(common_dir.parent, protected=paths)
+    return paths
+
+
 def _strip_ns(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
-def load_s2_acquisition_plans(source: str | Path | Iterable | None = None) -> gpd.GeoDataFrame:
+def _plan_window(name: str, document_name: str) -> tuple[pd.Timestamp, pd.Timestamp]:
+    match = re.search(
+        r"from\s+(\d{4}-?\d{2}-?\d{2}T\d{2}:?\d{2}:?\d{2})\s+to\s+(\d{4}-?\d{2}-?\d{2}T\d{2}:?\d{2}:?\d{2})",
+        document_name,
+        re.I,
+    )
+    match = match or _PLAN_RE.search(name) or _S1_PLAN_RE.search(name)
+    if not match:
+        return pd.NaT, pd.NaT
+    a, b = (value.replace("-", "").replace(":", "") for value in match.groups()[-2:])
+    return (
+        pd.Timestamp(datetime.strptime(a.upper(), "%Y%m%dT%H%M%S"), tz="UTC"),
+        pd.Timestamp(datetime.strptime(b.upper(), "%Y%m%dT%H%M%S"), tz="UTC"),
+    )
+
+
+def _kml_points(element: ET.Element) -> list[tuple[float, float]]:
+    text = next(
+        (child.text for child in element.iter() if _strip_ns(child.tag) == "coordinates"), ""
+    )
+    points = []
+    for coordinate in (text or "").split():
+        try:
+            lon, lat = map(float, coordinate.split(",")[:2])
+        except (TypeError, ValueError):
+            continue
+        points.append((lon, lat))
+    return points
+
+
+def load_acquisition_plans(source: str | Path | Iterable | None = None) -> gpd.GeoDataFrame:
     """
     Parse ESA Sentinel-2 acquisition-plan KML/KMZ files into a GeoDataFrame of data-takes.
 
@@ -173,6 +344,7 @@ def load_s2_acquisition_plans(source: str | Path | Iterable | None = None) -> gp
         files = [Path(f) for f in source]
 
     rows = []
+    plan_windows: list[dict[str, object]] = []
     for f in files:
         raw = f.read_bytes()
         if raw[:2] == b"PK":
@@ -181,14 +353,26 @@ def load_s2_acquisition_plans(source: str | Path | Iterable | None = None) -> gp
         root = ET.fromstring(raw)
 
         doc_name = next((el.text or "" for el in root.iter() if _strip_ns(el.tag) == "name"), "")
-        m = re.search(r"from\s+(\d{8}T\d{6})\s+to\s+(\d{8}T\d{6})", doc_name, re.I)
-        m = m or _PLAN_RE.search(f.name)
-        if m:
-            a, b = m.groups()[-2:]
-            plan_start = pd.Timestamp(datetime.strptime(a.upper(), "%Y%m%dT%H%M%S"), tz="UTC")
-            plan_end = pd.Timestamp(datetime.strptime(b.upper(), "%Y%m%dT%H%M%S"), tz="UTC")
-        else:
-            plan_start = plan_end = pd.NaT
+        plan_start, plan_end = _plan_window(f.name, doc_name)
+        file_match = _PLAN_RE.search(f.name) or _S1_PLAN_RE.search(f.name)
+        plan_satellite = ""
+        if file_match:
+            code = file_match.group(1).upper()
+            plan_satellite = {
+                "S1C": "SENTINEL-1C",
+                "S1D": "SENTINEL-1D",
+                "S2A": "SENTINEL-2A",
+                "S2B": "SENTINEL-2B",
+                "S2C": "SENTINEL-2C",
+            }.get(code, code)
+        plan_windows.append(
+            {
+                "plan_file": f.name,
+                "satellite": plan_satellite,
+                "plan_start_utc": plan_start,
+                "plan_end_utc": plan_end,
+            }
+        )
 
         def walk(node, folders):
             for child in node:
@@ -205,6 +389,16 @@ def load_s2_acquisition_plans(source: str | Path | Iterable | None = None) -> gp
                 for d in pm.iter()
                 if _strip_ns(d.tag) == "Data"
             }
+            data.update(
+                {
+                    d.get("name"): d.text
+                    for d in pm.iter()
+                    if _strip_ns(d.tag) == "SimpleData" and d.get("name")
+                }
+            )
+            data = {str(k): v for k, v in data.items() if k}
+            data.setdefault("SatelliteId", data.get("Satellite"))
+            data.setdefault("DatatakeId", data.get("ID"))
             polys = []
             for pg in (el for el in pm.iter() if _strip_ns(el.tag) == "Polygon"):
                 outer = next((el for el in pg.iter() if _strip_ns(el.tag) == "outerBoundaryIs"), pg)
@@ -217,28 +411,56 @@ def load_s2_acquisition_plans(source: str | Path | Iterable | None = None) -> gp
                     if lons.max() - lons.min() > 180:  # antimeridian: shift to 0–360
                         pts = [((x + 360) if x < 0 else x, y) for x, y in pts]
                     polys.append(shapely.make_valid(Polygon(pts)))
+            if not polys:
+                for ring in (el for el in pm.iter() if _strip_ns(el.tag) == "LinearRing"):
+                    pts = _kml_points(ring)
+                    if len(pts) >= 3:
+                        lons = np.array([p[0] for p in pts])
+                        if lons.max() - lons.min() > 180:
+                            pts = [((x + 360) if x < 0 else x, y) for x, y in pts]
+                        polys.append(shapely.make_valid(Polygon(pts)))
             sat_folder = next(
-                (fo for fo in folders if re.fullmatch(r"S2[ABC]", fo or "", re.I)), None
+                (fo for fo in folders if re.fullmatch(r"S[12][A-D]", fo or "", re.I)), None
             )
             sat_code = (
-                sat_folder or (_PLAN_RE.search(f.name).group(1) if _PLAN_RE.search(f.name) else "")
+                str(data.get("SatelliteId") or "").strip()
+                or sat_folder
+                or (
+                    (_PLAN_RE.search(f.name) or _S1_PLAN_RE.search(f.name)).group(1)
+                    if (_PLAN_RE.search(f.name) or _S1_PLAN_RE.search(f.name))
+                    else ""
+                )
             ).upper()
+            if sat_code.startswith("S1"):
+                satellite = {"S1C": "SENTINEL-1C", "S1D": "SENTINEL-1D"}.get(
+                    sat_code, f"SENTINEL-{sat_code[1:]}"
+                )
+            else:
+                satellite = {
+                    "S2A": "SENTINEL-2A",
+                    "S2B": "SENTINEL-2B",
+                    "S2C": "SENTINEL-2C",
+                }.get(sat_code, sat_code)
+            times = next((el for el in pm.iter() if _strip_ns(el.tag) == "TimeSpan"), None)
+            span_children = times if times is not None else []
+            begin = next((el.text for el in span_children if _strip_ns(el.tag) == "begin"), None)
+            end = next((el.text for el in span_children if _strip_ns(el.tag) == "end"), None)
+            obs_start = pd.to_datetime(
+                data.get("ObservationTimeStart") or begin, utc=True, errors="coerce"
+            )
+            obs_stop = pd.to_datetime(
+                data.get("ObservationTimeStop") or end, utc=True, errors="coerce"
+            )
             rows.append(
                 {
-                    "satellite": {
-                        "S2A": "SENTINEL-2A",
-                        "S2B": "SENTINEL-2B",
-                        "S2C": "SENTINEL-2C",
-                    }.get(sat_code, sat_code),
+                    "satellite": satellite,
                     "plan_category": folders[-1] if folders else None,
-                    "datatake_id": data.get("ID"),
+                    "datatake_id": data.get("DatatakeId"),
                     "mode": data.get("Mode"),
-                    "obs_start_utc": pd.to_datetime(
-                        data.get("ObservationTimeStart"), utc=True, errors="coerce"
-                    ),
-                    "obs_stop_utc": pd.to_datetime(
-                        data.get("ObservationTimeStop"), utc=True, errors="coerce"
-                    ),
+                    "swath": data.get("Swath"),
+                    "polarisation": data.get("Polarisation"),
+                    "obs_start_utc": obs_start,
+                    "obs_stop_utc": obs_stop,
                     "orbit_absolute": pd.to_numeric(data.get("OrbitAbsolute"), errors="coerce"),
                     "orbit_relative": pd.to_numeric(data.get("OrbitRelative"), errors="coerce"),
                     "plan_file": f.name,
@@ -255,6 +477,8 @@ def load_s2_acquisition_plans(source: str | Path | Iterable | None = None) -> gp
         "plan_category",
         "datatake_id",
         "mode",
+        "swath",
+        "polarisation",
         "obs_start_utc",
         "obs_stop_utc",
         "orbit_absolute",
@@ -265,9 +489,12 @@ def load_s2_acquisition_plans(source: str | Path | Iterable | None = None) -> gp
         "geometry",
     ]
     gdf = gpd.GeoDataFrame(rows, columns=cols, geometry="geometry", crs="EPSG:4326")
+    gdf.attrs["plan_windows"] = plan_windows
     if gdf.empty:
         for column in ["obs_start_utc", "obs_stop_utc", "plan_start_utc", "plan_end_utc"]:
             gdf[column] = pd.Series(dtype="datetime64[ns, UTC]")
+        for column in ["swath", "polarisation"]:
+            gdf[column] = pd.Series(dtype="str")
     if not files:
         print("📄 No acquisition-plan KML files found.")
     elif len(gdf):
@@ -276,3 +503,15 @@ def load_s2_acquisition_plans(source: str | Path | Iterable | None = None) -> gp
             + ", ".join(f"{k} {v}" for k, v in gdf["satellite"].value_counts().sort_index().items())
         )
     return gdf
+
+
+def load_s2_acquisition_plans(source: str | Path | Iterable | None = None) -> gpd.GeoDataFrame:
+    """Backward-compatible Sentinel-2 plan loader."""
+    out = load_acquisition_plans(source)
+    return out[out["satellite"].str.startswith("SENTINEL-2")].copy()
+
+
+def load_s1_acquisition_plans(source: str | Path | Iterable | None = None) -> gpd.GeoDataFrame:
+    """Load Sentinel-1 user acquisition plans from KML/KMZ files."""
+    out = load_acquisition_plans(source)
+    return out[out["satellite"].str.startswith("SENTINEL-1")].copy()

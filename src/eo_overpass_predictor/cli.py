@@ -19,12 +19,12 @@ from typer.core import TyperCommand
 
 from . import api
 from .core.orbits import _to_utc_timestamp
-from .io.cache import cache_files, cache_root, cache_session, clear_cache
+from .io.cache import cache_files, cache_root, cache_session, clear_cache, prune_plan_cache
 from .presentation import SCHEMA_VERSION, json_value, prediction_document
 from .types import TLERecord
 
 app = typer.Typer(
-    no_args_is_help=True, help="Swath-aware Landsat and Sentinel-2 overpass prediction."
+    no_args_is_help=True, help="Swath-aware Landsat and Sentinel overpass prediction."
 )
 
 
@@ -109,7 +109,7 @@ Satellite = Annotated[
         "-s",
         metavar="SATELLITE...",
         help="Names, aliases or NORAD IDs; space/comma separated or repeated. "
-        "S2 selects Sentinel-2A/B/C; LS selects Landsat 8/9. Default: all five.",
+        "S2 selects Sentinel-2A/B/C; S1 selects Sentinel-1C/D; LS selects Landsat 8/9. Default: all seven.",
     ),
 ]
 Timezone = Annotated[str | None, typer.Option("--timezone", help="Override the ROI IANA timezone.")]
@@ -133,6 +133,9 @@ MinSun = Annotated[
     float, typer.Option("--min-sun-elevation", min=-90, max=90, help="Solar elevation threshold.")
 ]
 AllPasses = Annotated[bool, typer.Option(help="Include night/ascending geometric passes.")]
+S1Mode = Annotated[
+    str, typer.Option("--s1-mode", case_sensitive=False, help="Sentinel-1 mode: IW or EW.")
+]
 Plans = Annotated[
     Path | None, typer.Option(exists=True, help="Local ESA KML/KMZ file or directory.")
 ]
@@ -178,8 +181,13 @@ def _calculate(
     min_roi_coverage_pct: float = 0,
     min_sun_elevation_deg: float = 0,
     daytime_descending_only: bool = True,
+    s1_mode: str = "IW",
+    imaging_only: bool | None = None,
 ) -> tuple[gpd.GeoDataFrame, dict[str, TLERecord], gpd.GeoDataFrame]:
     start_ts, end_ts = _to_utc_timestamp(start), _to_utc_timestamp(end)
+    s1_mode = str(s1_mode).upper()
+    if s1_mode not in {"IW", "EW"}:
+        raise ValueError("--s1-mode must be IW or EW.")
     if end_ts <= start_ts:
         raise ValueError("--end must be later than --start.")
     if not math.isfinite(min_roi_coverage_pct) or not math.isfinite(min_sun_elevation_deg):
@@ -204,6 +212,8 @@ def _calculate(
         min_roi_coverage_pct=min_roi_coverage_pct,
         min_sun_elevation_deg=min_sun_elevation_deg,
         daytime_descending_only=daytime_descending_only,
+        s1_mode=s1_mode,
+        imaging_only=imaging_only,
     )
     return area, tles, passes
 
@@ -221,30 +231,49 @@ def _check_plans(
         return passes
     plan_source: Path | list[Path] | None = plans
     if fetch_plans:
-        units = [name for name in tles if name.startswith("SENTINEL-2")]
-        try:
-            plan_source = (
-                api.fetch_s2_acquisition_plans(
-                    plan_dir=cache_dir / "plans" if cache_dir else None,
-                    start_utc=passes.attrs["window_start_utc"],
-                    end_utc=passes.attrs["window_end_utc"],
-                    satellites=units,
-                    verbose=False,
+        plan_source = []
+        # Share one directory across mission downloads. Passing it explicitly
+        # prevents each mission adapter from pruning the other's fresh files.
+        plan_dir = (cache_root() if cache_dir is None else cache_dir) / "plans"
+        for mission, fetcher in (
+            ("Sentinel-2", api.fetch_s2_acquisition_plans),
+            ("Sentinel-1", api.fetch_s1_acquisition_plans),
+        ):
+            units = [name for name in tles if name.startswith(mission.upper())]
+            if not units:
+                continue
+            try:
+                plan_source.extend(
+                    fetcher(
+                        plan_dir=plan_dir,
+                        start_utc=passes.attrs["window_start_utc"],
+                        end_utc=passes.attrs["window_end_utc"],
+                        satellites=units,
+                        verbose=False,
+                    )
                 )
-                if units
-                else []
-            )
-        except (requests.RequestException, RuntimeError, OSError) as exc:
-            message = f"ESA plans unavailable: {exc}; using cached plans."
-            diagnostics.append({"code": "plans_unavailable", "message": message})
-            typer.echo(f"Warning: {message}", err=True)
-            plan_source = (
-                cache_dir / "plans"
-                if cache_dir and (cache_dir / "plans").is_dir()
-                else ([] if cache_dir else None)
-            )
-    loaded = api.load_s2_acquisition_plans(plan_source)
-    return api.crosscheck_s2_acquisition_plan(passes, loaded, area)
+            except (requests.RequestException, RuntimeError, OSError) as exc:
+                message = f"{mission} ESA plans unavailable: {exc}; using cached plans."
+                diagnostics.append({"code": "plans_unavailable", "message": message})
+                typer.echo(f"Warning: {message}", err=True)
+                fallback_root = cache_root() if cache_dir is None else cache_dir
+                if (fallback_root / "plans").is_dir():
+                    prefix = "s1" if mission == "Sentinel-1" else "s2"
+                    plan_source.extend(
+                        sorted(
+                            path
+                            for path in (fallback_root / "plans").iterdir()
+                            if path.is_file()
+                            and path.suffix.lower() in {".kml", ".kmz"}
+                            and path.name.lower().startswith(prefix)
+                        )
+                    )
+        if cache_dir is None:
+            prune_plan_cache(plan_dir.parent, protected=[Path(path) for path in plan_source])
+        if not plan_source and plan_dir.is_dir():
+            plan_source = plan_dir
+    loaded = api.load_acquisition_plans(plan_source)
+    return api.crosscheck_acquisition_plan(passes, loaded, area)
 
 
 def _output_format(output: Path | None, explicit: str | None = None) -> str | None:
@@ -285,6 +314,29 @@ def _print_prediction(document: dict[str, Any]) -> None:
                 f"  {status['imaging_label']} · {status['acquisition_label']}\n"
                 f"  TLE: {status['orbital_data']} ({abs(status['tle_age_days']):.1f} days from pass)"
             )
+            if row.get("mission") == "Sentinel-1":
+                incidence = row.get("incidence_angle_deg")
+                incidence_text = (
+                    f"{float(incidence):.1f}°"
+                    if incidence is not None and not pd.isna(incidence)
+                    else "n/a"
+                )
+                sar = (
+                    f"  SAR: {row.get('s1_mode') or 'IW'} · {row.get('look_side') or 'right'}-looking"
+                    f" · incidence {incidence_text}"
+                )
+                typer.echo(sar)
+            plan_details = []
+            for key, label in (
+                ("esa_polarisation", "polarisation"),
+                ("esa_relative_orbit", "relative orbit"),
+                ("esa_plan_file", "plan"),
+            ):
+                value = row.get(key)
+                if value is not None and not pd.isna(value):
+                    plan_details.append(f"{label}: {value}")
+            if plan_details:
+                typer.echo("  ESA: " + " · ".join(plan_details))
             for warning in status["warnings"]:
                 typer.echo(f"  Note: {warning['message']}")
         typer.echo(
@@ -313,6 +365,7 @@ def _run_prediction(
     plans: Path | None = None,
     fetch_plans: bool = False,
     format: str | None = None,
+    s1_mode: str = "IW",
 ) -> None:
     chosen = _output_format(output, format)
     if command == "tracker" and chosen != "html":
@@ -334,6 +387,8 @@ def _run_prediction(
             min_roi_coverage_pct=min_coverage,
             min_sun_elevation_deg=min_sun_elevation,
             daytime_descending_only=not all_passes,
+            s1_mode=s1_mode,
+            imaging_only=not all_passes,
         )
         passes = _check_plans(passes, area, tles, plans, fetch_plans, active_cache, diagnostics)
         if output is not None:
@@ -359,6 +414,8 @@ def _run_prediction(
             "fine_step_s": 1,
             "plans": str(plans.resolve()) if plans else None,
             "fetch_plans": fetch_plans,
+            "s1_mode": s1_mode.upper(),
+            "imaging_only": not all_passes,
         },
         diagnostics,
         str(output.resolve()) if output else None,
@@ -399,6 +456,7 @@ def next_command(
     all_passes: AllPasses = False,
     plans: Plans = None,
     fetch_plans: FetchPlans = False,
+    s1_mode: S1Mode = "IW",
     json_output: JsonOutput = False,
 ) -> None:
     """Find upcoming passes for exactly one point, bounding box or ROI file."""
@@ -433,6 +491,8 @@ def next_command(
             all_passes,
             plans,
             fetch_plans,
+            None,
+            s1_mode,
         )
 
 
@@ -456,6 +516,7 @@ def predict_command(
     all_passes: AllPasses = False,
     plans: Plans = None,
     fetch_plans: FetchPlans = False,
+    s1_mode: S1Mode = "IW",
     json_output: JsonOutput = False,
 ) -> None:
     """Predict ROI coverage and export a report, footprints or HTML planner."""
@@ -479,6 +540,7 @@ def predict_command(
             plans,
             fetch_plans,
             format,
+            s1_mode,
         )
 
 
@@ -499,6 +561,7 @@ def tracker_command(
     all_passes: AllPasses = False,
     plans: Plans = None,
     fetch_plans: FetchPlans = False,
+    s1_mode: S1Mode = "IW",
     json_output: JsonOutput = False,
 ) -> None:
     """Export a standalone HTML tracker and interactive observation planner."""
@@ -521,6 +584,8 @@ def tracker_command(
             all_passes,
             plans,
             fetch_plans,
+            None,
+            s1_mode,
         )
 
 

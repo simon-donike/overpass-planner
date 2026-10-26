@@ -1,6 +1,7 @@
 // Optional Playwright checks. Network dependencies are fulfilled from a local file.
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
 const { chromium } = require(process.env.EO_PLAYWRIGHT_MODULE || 'playwright');
 
@@ -95,6 +96,17 @@ const { chromium } = require(process.env.EO_PLAYWRIGHT_MODULE || 'playwright');
   await open('positions.html');
   assert.match(await page.locator('#passes').textContent(), /no prediction list/);
   assert.equal(errors.length, 0, errors.join('\n'));
+  if (fs.existsSync(path.join(process.argv[2], 'sar.html'))){
+    await open('sar.html');
+    await page.waitForFunction(() => window.sats?.some(s => s.name === 'SENTINEL-1C'));
+    const actual = await page.evaluate(() => sarEdge(sats.find(s => s.name === 'SENTINEL-1C'), new Date('2026-10-26T00:00:00Z')));
+    const expected = JSON.parse(fs.readFileSync(path.join(process.argv[2], 'sar_expected.json'), 'utf8'));
+    assert.equal(actual.length, 2);
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) assert.ok(Math.abs(actual[i][j] - expected[i][j]) < 1e-5, `SAR geometry mismatch ${i}/${j}`);
+    assert.ok(await page.locator('.pass').count() > 0);
+    assert.match(await page.locator('.pass').first().textContent(), /Radar imaging/);
+    assert.match(await page.locator('#passDetails').textContent(), /incidence angle/);
+  }
   await browser.close();
   console.log('Planner browser checks passed: selection, keyboard, live mode, sorting, filters, statuses, expiry, empty states and mobile layout.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

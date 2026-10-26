@@ -15,6 +15,7 @@ def main() -> None:
     )
     area = eo.load_roi((144.35, -38.35, 145.15, -37.80))
     tles = eo.fetch_tles(
+        satellites=["LS", "S2"],
         tle_text=(fixtures / "satellites.tle").read_text(),
         tle_dir=destination / "tle",
         offline=True,
@@ -35,6 +36,28 @@ def main() -> None:
     eo.export_overpass_footprints(passes, destination / "wheel.gpkg")
     eo.export_live_tracker_html(tles, area, destination / "wheel.html", passes=passes)
     assert "/*__PAYLOAD__*/null" not in (destination / "wheel.html").read_text()
+    radar_tles = eo.fetch_tles(
+        satellites="S1",
+        tle_text=(fixtures / "sentinel1.tle").read_text(),
+        tle_dir=destination / "tle",
+        offline=True,
+        verbose=False,
+    )
+    radar = eo.predict_overpasses(
+        area,
+        radar_tles,
+        start_utc="2026-10-26",
+        days=5,
+        timezone_name="UTC",
+        s1_mode="EW",
+        verbose=False,
+    )
+    assert not radar.empty
+    assert radar["mission"].eq("Sentinel-1").all()
+    assert radar["mode"].eq("EW").all()
+    assert radar["imaging_expected"].all()
+    eo.export_live_tracker_html(radar_tles, area, destination / "wheel-sar.html", passes=radar)
+    assert "EW" in (destination / "wheel-sar.html").read_text()
     # An optional call gives installation guidance without breaking normal imports.
     try:
         eo.visualise_roi_on_map(area)

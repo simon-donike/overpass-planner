@@ -27,6 +27,7 @@ def baseline():
 @pytest.fixture(scope="session")
 def tles(tmp_path_factory):
     return fetch_tles(
+        satellites=["LS", "S2"],
         tle_text=(FIXTURES / "satellites.tle").read_text(),
         tle_dir=tmp_path_factory.mktemp("tle"),
         offline=True,

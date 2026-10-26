@@ -12,6 +12,7 @@ import shapely
 from shapely.geometry import Polygon
 from shapely.ops import transform
 from skyfield.api import wgs84
+from skyfield.framelib import itrs
 
 from ..types import DateInput, SatelliteSelection, TLERecord
 from .geometry import _local_equal_area, _roi_anchor, resolve_roi_timezone
@@ -26,6 +27,7 @@ from .orbits import (
     _ts,
     solar_elevation_deg,
 )
+from .sensors import incidence_angle_at_target, sensor_model
 
 
 def predict_overpasses(
@@ -41,6 +43,9 @@ def predict_overpasses(
     coarse_step_s: float = 30.0,
     fine_step_s: float = 1.0,
     verbose: bool = True,
+    *,
+    s1_mode: str = "IW",
+    imaging_only: bool | None = None,
 ) -> gpd.GeoDataFrame:
     """
     Predict when each satellite's instrument swath will image the ROI.
@@ -52,19 +57,22 @@ def predict_overpasses(
         1. **Coarse scan** — the orbit is propagated (SGP4) every ``coarse_step_s``
            seconds across the window and the geodesic distance from each sub-satellite
            point to the ROI anchor is computed. Samples closer than
-           half-swath + ROI radius + 150 km are grouped into candidate windows (the
-           margin guarantees no imaging pass can fall between two coarse samples).
+           the footprint search radius plus ROI radius and 150 km are grouped into
+           candidate windows. SAR uses a larger radius for its off-track footprint.
         2. **Fine refinement** — each candidate is re-propagated every ``fine_step_s``
            seconds. The ground-track heading is derived from successive sub-points and
            the instantaneous cross-track scan line (±half swath, perpendicular to the
            ground track, as for yaw-steered pushbroom imagers) is built geodesically.
+           Sentinel-1 instead intersects near/far right-looking rays with WGS84
+           in the Earth-fixed velocity-perpendicular plane.
         3. **Intersection** — scan lines and the swath strip are projected into an
            ROI-centred Lambert azimuthal equal-area CRS and intersected with the ROI,
            giving ROI entry/exit times and the true fraction of the ROI imaged.
         4. **Attribution** — direction (ascending/descending), nadir offset, view angle,
            peak elevation seen from the ROI, solar elevation, TLE age, and an
            ``imaging_expected`` flag (descending + sun above threshold + inside the
-           mission's latitude limits) are attached; times are converted to local time.
+           mission's latitude limits for optical sensors) are attached; times are
+           converted to local time. Radar eligibility admits both directions at night.
 
     Args:
         roi_gdf (gpd.GeoDataFrame): ROI from ``load_roi``.
@@ -73,7 +81,8 @@ def predict_overpasses(
         days (float, optional): Window length in days. Defaults to 16 (one Landsat
             repeat cycle; Sentinel-2 repeats every 10 days per unit).
         satellites (SatelliteSelection, optional): Names, aliases, NORAD ids or groups
-            ("S2" for Sentinel-2A/B/C, "LS" for Landsat 8/9). Defaults to all in ``tles``.
+            ("S1" for Sentinel-1C/D, "S2" for Sentinel-2A/B/C, "LS" for Landsat 8/9).
+            Defaults to all in ``tles``.
         timezone_name (str, optional): IANA zone for local times. Defaults to the
             zone resolved from the ROI.
         daytime_descending_only (bool, optional): Keep only passes where imaging is
@@ -86,6 +95,9 @@ def predict_overpasses(
         coarse_step_s (float, optional): Coarse search step. Defaults to 30.
         fine_step_s (float, optional): Refinement step (time resolution). Defaults to 1.
         verbose (bool, optional): Print a per-satellite summary. Defaults to True.
+        s1_mode (str, keyword-only): Nominal Sentinel-1 IW (default) or EW envelope.
+        imaging_only (bool, keyword-only, optional): Filter on sensor eligibility.
+            None retains ``daytime_descending_only``; solar filtering is optical only.
 
     Returns:
         gpd.GeoDataFrame: One row per overpass, sorted by time, EPSG:4326 swath strip
@@ -99,15 +111,16 @@ def predict_overpasses(
     Notes:
         - ``overpass_utc`` is the closest approach to the ROI anchor point
           (≈ scene centre time for a small ROI), refined below the time step.
-        - ``edge_margin_km`` = half swath − nadir offset of the ROI anchor. Values
-          within ~±5 km of zero are uncertain: the real swath edge differs slightly
-          from the nominal width (it varies with altitude and detector layout).
+        - ``edge_margin_km`` is the signed margin to the nearest cross-track edge.
+          Optical values retain half swath minus nadir offset and the approximately
+          ±5 km edge caveat. SAR uses the right-looking near/far envelope; its
+          nominal model does not include terrain, exact beam scheduling or bursts.
         - SGP4 + fresh TLEs typically place a sun-synchronous EO satellite within a
           few km / ~1 s along-track; accuracy degrades with TLE age (see
           ``tle_age_days``) and around orbit-maintenance manoeuvres. Refresh TLEs
           before relying on predictions more than ~2 weeks ahead.
         - Geometry says *can* image. Whether data are actually *acquired* depends on
-          the mission plan — use ``crosscheck_s2_acquisition_plan`` for Sentinel-2.
+          the mission plan — use ``crosscheck_acquisition_plan`` for Sentinel-1/2.
     """
 
     for label, value in [
@@ -125,6 +138,9 @@ def predict_overpasses(
         raise ValueError("min_roi_coverage_pct must be between 0 and 100.")
     if not np.isfinite(min_sun_elevation_deg) or not -90 <= min_sun_elevation_deg <= 90:
         raise ValueError("min_sun_elevation_deg must be between -90 and 90.")
+    s1_mode = str(s1_mode).upper().strip()
+    if s1_mode not in {"IW", "EW"}:
+        raise ValueError("s1_mode must be IW or EW.")
     if (
         not isinstance(roi_gdf, gpd.GeoDataFrame)
         or len(roi_gdf) != 1
@@ -169,8 +185,14 @@ def predict_overpasses(
             raise KeyError(f"No TLE loaded for {name}; include it in fetch_tles().")
         cat = SATELLITE_CATALOGUE[name]
         sat = _build_satellite(name, tles[name])
+        model = sensor_model(cat)
+        is_sar = not model.optical
         half_km = cat["swath_km"] / 2.0
-        thresh_km = half_km + roi_radius_km + 150.0
+        # The coarse cull is centred on nadir.  SAR's far edge is hundreds of
+        # kilometres to the right of nadir, so its cull radius must cover the
+        # full published look-angle envelope rather than half the nominal
+        # ground swath.
+        thresh_km = model.search_radius_km(cat["swath_km"]) + roi_radius_km + 150.0
 
         # ---- 1. coarse scan
         off = np.arange(0.0, total_s + coarse_step_s, coarse_step_s)
@@ -186,16 +208,53 @@ def predict_overpasses(
         kept = 0
         for run in runs:
             # ---- 2. fine refinement
+            fine_start = max(off[run[0]] - 2 * coarse_step_s, 0.0)
+            fine_end = min(off[run[-1]] + 2 * coarse_step_s, total_s)
             f_off = np.arange(
-                max(off[run[0]] - 2 * coarse_step_s, 0.0),
-                min(off[run[-1]] + 2 * coarse_step_s, total_s) + fine_step_s,
+                fine_start,
+                fine_end + fine_step_s,
                 fine_step_s,
             )
+            if is_sar:
+                f_off = np.clip(f_off, fine_start, fine_end)
+                f_off = np.unique(f_off)
+                if f_off[-1] < fine_end:
+                    f_off = np.append(f_off, fine_end)
             lat, lon, alt = _propagate(sat, t0, f_off)
             az, _, _ = GEOD.inv(lon[:-1], lat[:-1], lon[1:], lat[1:])
             az = np.append(az, az[-1])
-            llon, llat, _ = GEOD.fwd(lon, lat, az - 90.0, np.full_like(lon, half_km * 1000.0))
-            rlon, rlat, _ = GEOD.fwd(lon, lat, az + 90.0, np.full_like(lon, half_km * 1000.0))
+            near_angle = far_angle = incidence_angle = np.full_like(lon, np.nan, dtype=float)
+            if is_sar:
+                # Sentinel-1 is right-looking in the Earth-fixed zero-Doppler
+                # plane. Use the propagated ITRS state for each scan line.
+                states = sat.at(
+                    _ts().utc(
+                        t0.year,
+                        t0.month,
+                        t0.day,
+                        t0.hour,
+                        t0.minute,
+                        t0.second + t0.microsecond / 1e6 + f_off,
+                    )
+                )
+                ecef_state, velocity_state = states.frame_xyz_and_velocity(itrs)
+                ecef = ecef_state.km.T
+                vel = velocity_state.km_per_s.T
+                llon, llat, rlon, rlat, near_angle, far_angle = model.scan_lines(
+                    lon,
+                    lat,
+                    az,
+                    cat["swath_km"],
+                    mode=s1_mode,
+                    positions=ecef,
+                    velocities=vel,
+                    altitudes=alt,
+                )
+                incidence_angle = np.asarray(
+                    [incidence_angle_at_target(ecef[i], lon0, lat0) for i in range(len(lon))]
+                )
+            else:
+                llon, llat, rlon, rlat, _, _ = model.scan_lines(lon, lat, az, cat["swath_km"])
             lx, ly = fwd(llon, llat)
             rx, ry = fwd(rlon, rlat)
             nx, ny = fwd(lon, lat)
@@ -211,12 +270,31 @@ def predict_overpasses(
             i_in, i_out = hits[0], hits[-1] + 1
             d2 = nx**2 + ny**2
             i_ca = int(np.argmin(d2))
-            frac = 0.0  # sub-step closest approach (parabolic fit on d²)
+            frac = 0.0  # retained for the legacy optical sampling path
             if 0 < i_ca < len(d2) - 1:
-                den = d2[i_ca - 1] - 2 * d2[i_ca] + d2[i_ca + 1]
-                if den > 0:
-                    frac = float(np.clip(0.5 * (d2[i_ca - 1] - d2[i_ca + 1]) / den, -0.5, 0.5))
-            t_ca_off = float(f_off[i_ca]) + frac * fine_step_s
+                if is_sar:
+                    local_x = f_off[i_ca - 1 : i_ca + 2] - f_off[i_ca]
+                    coeff = np.polyfit(local_x, d2[i_ca - 1 : i_ca + 2], 2)
+                    if coeff[0] > 0:
+                        vertex = float(-coeff[1] / (2.0 * coeff[0]))
+                        t_ca_off = float(f_off[i_ca] + np.clip(vertex, local_x[0], local_x[-1]))
+                    else:
+                        t_ca_off = float(f_off[i_ca])
+                else:
+                    den = d2[i_ca - 1] - 2 * d2[i_ca] + d2[i_ca + 1]
+                    if den > 0:
+                        frac = float(
+                            np.clip(
+                                0.5 * (d2[i_ca - 1] - d2[i_ca + 1]) / den,
+                                -0.5,
+                                0.5,
+                            )
+                        )
+                    t_ca_off = float(f_off[i_ca]) + frac * fine_step_s
+            else:
+                t_ca_off = float(f_off[i_ca])
+            if is_sar:
+                t_ca_off = float(np.clip(t_ca_off, 0.0, total_s))
             if roi_eq.geom_type == "Point":  # a point is imaged at a single instant
                 i_in = i_out = i_ca
 
@@ -234,6 +312,16 @@ def predict_overpasses(
             direction = "Ascending" if lat[i_next] > lat[i_prev] else "Descending"
             az_to_roi, _, d_ca = GEOD.inv(lon[i_ca], lat[i_ca], lon0, lat0)
             d_ca_km = d_ca / 1000.0
+            if is_sar:
+                d_near = GEOD.inv(lon[i_ca], lat[i_ca], llon[i_ca], llat[i_ca])[2] / 1000.0
+                d_far = GEOD.inv(lon[i_ca], lat[i_ca], rlon[i_ca], rlat[i_ca])[2] / 1000.0
+                # Signed cross-track distance: positive is the right side of
+                # the Earth-fixed ground-track heading, negative is left.
+                delta = math.radians((az_to_roi - az[i_ca] + 180.0) % 360.0 - 180.0)
+                cross_track_km = d_ca_km * math.sin(delta)
+                sar_edge_margin_km = min(cross_track_km - d_near, d_far - cross_track_km)
+            else:
+                sar_edge_margin_km = half_km - d_ca_km
             gamma = d_ca_km / EARTH_RADIUS_KM
             view = math.degrees(
                 math.atan2(
@@ -245,15 +333,19 @@ def predict_overpasses(
 
             t_in = t0 + pd.Timedelta(seconds=float(f_off[i_in]))
             t_ca = t0 + pd.Timedelta(milliseconds=int(round(t_ca_off * 10)) * 100)
+            if is_sar:
+                t_ca = min(max(t_ca, t0), t0 + pd.Timedelta(seconds=total_s))
             t_out = t0 + pd.Timedelta(seconds=float(f_off[i_out]))
+            if is_sar and roi_eq.geom_type == "Point":
+                t_in = t_out = t_ca
             sun_el = float(solar_elevation_deg([t_ca], lat0, lon0)[0])
             t_sf = _ts().from_datetime(t_ca.to_pydatetime())
             max_el = float((sat - topos).at(t_sf).altaz()[0].degrees)
-            lo, hi = cat["lat_limits"]
-            expected = bool(
-                direction == "Descending" and sun_el >= min_sun_elevation_deg and lo <= lat0 <= hi
+            expected = model.imaging_eligible(
+                direction, sun_el, min_sun_elevation_deg, lat0, cat["lat_limits"]
             )
-            if daytime_descending_only and not expected:
+            optical_filter = daytime_descending_only if imaging_only is None else imaging_only
+            if optical_filter and not expected:
                 continue
 
             # display strip: ROI crossing ±~150 km along track
@@ -292,7 +384,7 @@ def predict_overpasses(
                     "utc_offset": f"{'+' if off_s >= 0 else '-'}{int(abs(off_s) // 3600):02d}:{int(abs(off_s) % 3600 // 60):02d}",
                     "nadir_offset_km": round(d_ca_km, 1),
                     "roi_side_of_track": side,
-                    "edge_margin_km": round(half_km - d_ca_km, 1),
+                    "edge_margin_km": round(sar_edge_margin_km, 1),
                     "view_angle_deg": round(view, 2),
                     "max_elevation_deg": round(max_el, 1),
                     "sun_elevation_deg": round(sun_el, 1),
@@ -300,6 +392,14 @@ def predict_overpasses(
                     "tle_epoch_utc": epoch,
                     "tle_age_days": round((t_ca - epoch).total_seconds() / 86400.0, 1),
                     "note": cat["note"],
+                    "s1_mode": s1_mode if is_sar else None,
+                    "mode": s1_mode if is_sar else None,
+                    "look_side": "right" if is_sar else "centred",
+                    "near_look_angle_deg": round(float(near_angle[i_ca]), 2) if is_sar else None,
+                    "far_look_angle_deg": round(float(far_angle[i_ca]), 2) if is_sar else None,
+                    "incidence_angle_deg": round(float(incidence_angle[i_ca]), 2)
+                    if is_sar
+                    else None,
                     "geometry": disp,
                 }
             )
@@ -334,6 +434,12 @@ def predict_overpasses(
         "tle_epoch_utc",
         "tle_age_days",
         "note",
+        "s1_mode",
+        "mode",
+        "look_side",
+        "near_look_angle_deg",
+        "far_look_angle_deg",
+        "incidence_angle_deg",
         "geometry",
     ]
     gdf = gpd.GeoDataFrame(rows, columns=cols, geometry="geometry", crs="EPSG:4326")
@@ -363,6 +469,7 @@ def predict_overpasses(
             "timezone": tz_name,
             "window_start_utc": t0,
             "window_end_utc": t0 + pd.Timedelta(seconds=total_s),
+            "s1_mode": str(s1_mode).upper().strip(),
         }
     )
     if verbose:

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import folium
 import geopandas as gpd
+import pandas as pd
 from shapely.geometry import mapping
 
 from .core.geometry import _roi_anchor
@@ -96,8 +97,16 @@ def visualise_overpass_footprints(
             tip = (
                 f"<b>{sat}</b><br>{r['overpass_local']:%a %d %b %Y %H:%M:%S} ({tz})"
                 f"<br>{r['overpass_utc']:%Y-%m-%d %H:%M:%S} UTC<br>{r['direction']} · "
-                f"ROI cover {r['roi_coverage_pct']:.0f}% · view {r['view_angle_deg']:.1f}°"
+                f"ROI cover {r['roi_coverage_pct']:.0f}%"
             )
+            if pd.notna(r.get("view_angle_deg")):
+                tip += f" · view {r['view_angle_deg']:.1f}°"
+            if pd.notna(r.get("incidence_angle_deg")):
+                tip += f" · incidence {r['incidence_angle_deg']:.1f}°"
+            if pd.notna(r.get("mode")):
+                tip += f" · mode {r['mode']}"
+            if pd.notna(r.get("look_side")):
+                tip += f" · look {r['look_side']}"
             if "esa_plan_status" in r:
                 tip += f"<br>ESA plan: {r['esa_plan_status']}"
             folium.GeoJson(
@@ -164,7 +173,7 @@ def plot_overpass_timeline(passes: gpd.GeoDataFrame, save_path: str | None = Non
         g = passes[passes["satellite"] == sat]
         filled = g["imaging_expected"].copy()
         if "esa_plan_status" in g:
-            filled &= ~g["esa_plan_status"].str.startswith("not planned")
+            filled &= ~g["esa_plan_status"].fillna("").str.startswith("not planned")
         x = g["overpass_local"].dt.tz_localize(None)
         c = SATELLITE_CATALOGUE[sat]["colour"]
         size = 30 + 1.4 * g["roi_coverage_pct"]

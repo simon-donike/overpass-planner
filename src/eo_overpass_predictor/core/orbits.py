@@ -12,7 +12,8 @@ from ..types import DateInput, SatelliteInfo, SatelliteSelection, TLERecord
 EARTH_RADIUS_KM = 6371.0088
 GEOD = Geod(ellps="WGS84")
 
-# Mission catalogue. Add rows to track other nadir-looking optical sensors
+# Mission catalogue. Geometry-specific entries may use a non-centred sensor
+# strategy (for example Sentinel-1's right-looking SAR footprint).
 # (swath_km is the full cross-track width of the instrument footprint).
 SATELLITE_CATALOGUE: dict[str, SatelliteInfo] = {
     "LANDSAT 8": {
@@ -60,6 +61,28 @@ SATELLITE_CATALOGUE: dict[str, SatelliteInfo] = {
         "colour": "#59A14F",
         "note": "Nominal constellation (with S2B). Open ocean is not acquired.",
     },
+    "SENTINEL-1C": {
+        "norad_id": 62261,
+        "mission": "Sentinel-1",
+        "sensor": "C-SAR",
+        "swath_km": 250.0,
+        "lat_limits": (-90.0, 90.0),
+        "colour": "#B07AA1",
+        "geometry": "right_looking_sar",
+        "modes": ("IW", "EW"),
+        "note": "Nominal right-looking SAR; all-weather, day/night. Check the acquisition plan.",
+    },
+    "SENTINEL-1D": {
+        "norad_id": 66315,
+        "mission": "Sentinel-1",
+        "sensor": "C-SAR",
+        "swath_km": 250.0,
+        "lat_limits": (-90.0, 90.0),
+        "colour": "#AF7AA1",
+        "geometry": "right_looking_sar",
+        "modes": ("IW", "EW"),
+        "note": "Nominal right-looking SAR; all-weather, day/night. Check the acquisition plan.",
+    },
 }
 
 _TIMESCALE = None
@@ -84,7 +107,7 @@ def _to_utc_timestamp(value: DateInput) -> pd.Timestamp:
 def _resolve_satellites(satellites: SatelliteSelection) -> list[str]:
     """Expand names, NORAD IDs and mission groups, keeping each satellite once.
 
-    S2 selects Sentinel-2A/B/C; LS selects Landsat 8/9. Strings may contain
+    S2 selects Sentinel-2A/B/C, S1 selects Sentinel-1C/D; LS selects Landsat 8/9. Strings may contain
     comma-separated selections. Full mission names are also accepted.
     """
     if satellites is None:
@@ -98,6 +121,8 @@ def _resolve_satellites(satellites: SatelliteSelection) -> list[str]:
     groups = {
         "S2": "Sentinel-2",
         "SENTINEL-2": "Sentinel-2",
+        "S1": "Sentinel-1",
+        "SENTINEL-1": "Sentinel-1",
         "LS": "Landsat",
         "LANDSAT": "Landsat",
     }
@@ -129,6 +154,8 @@ def _resolve_satellites(satellites: SatelliteSelection) -> list[str]:
             "S2A": "SENTINEL-2A",
             "S2B": "SENTINEL-2B",
             "S2C": "SENTINEL-2C",
+            "S1C": "SENTINEL-1C",
+            "S1D": "SENTINEL-1D",
         }.get(key, key)
         if key not in SATELLITE_CATALOGUE:
             raise ValueError(
