@@ -53,6 +53,11 @@ def test_tracker_contains_resources_and_structured_payload(results, tles, tmp_pa
     payload = json.loads(re.search(r"const P = (.*);", html).group(1))
     assert len(payload["sats"]) == 5
     assert len(payload["passes"]) == len(results["polygon"])
+    assert payload["predictions_included"]
+    assert payload["window_start"] == "2026-10-26T00:00:00Z"
+    assert payload["window_end"].endswith("Z")
+    assert payload["passes"][0]["status"]["imagery"] == "not_checked"
+    assert payload["passes"][0]["footprint"]["type"] in {"Polygon", "MultiPolygon"}
     assert payload["roi"]["features"][0]["geometry"]["type"] == "Point"
     land = json.loads(re.search(r"const LAND = (.*);", html).group(1))
     assert land

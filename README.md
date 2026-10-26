@@ -191,6 +191,13 @@ See the [API reference](docs/api.md) for function groups and ESA status values.
 
 ## Notebooks and visualization
 
+HTML exports include a planning view: filter and sort passes, select one in the
+list or timeline to inspect its footprint at closest approach, and return to live
+tracking. The prediction window and expired-report notice are visible above the
+map. Each pass separates geometric coverage, expected imaging, acquisition-plan
+evidence, and TLE age at the pass. Missing plans mean **unknown**, and age labels
+are refresh reminders rather than accuracy estimates. See the [planner guide](docs/cli.md#use-the-html-planner).
+
 ```bash
 uv sync --extra notebooks
 uv run --extra notebooks jupyter lab

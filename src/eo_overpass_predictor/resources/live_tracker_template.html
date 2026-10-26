@@ -1,5 +1,4 @@
 <title>__TITLE__</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -26,7 +25,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:1
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   padding-block:12px;box-sizing:border-box}
 *{box-sizing:border-box}
-.app{height:100%;display:grid;grid-template-rows:auto 1fr;gap:12px;min-height:520px}
+.app{height:100%;display:grid;grid-template-rows:auto auto 1fr;gap:12px;min-height:520px}
 header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px;border-bottom:1px solid var(--line);padding-bottom:10px}
 h1{font-family:var(--f-display);font-weight:600;font-size:1.6rem;letter-spacing:.01em;margin:0;text-wrap:balance}
 .roi-tag{font-family:var(--f-mono);font-size:.8rem;color:var(--muted)}
@@ -34,7 +33,8 @@ h1{font-family:var(--f-display);font-weight:600;font-size:1.6rem;letter-spacing:
 .clocks{margin-left:auto;display:flex;gap:18px;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 .clock span{display:block;font-family:var(--f-body);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .clock strong{font-weight:500;font-size:1.05rem}
-main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;min-height:0}
+main{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:14px;min-height:0}
+.visuals{display:grid;grid-template-rows:minmax(300px,1fr) auto;gap:12px;min-height:0}
 .chart{position:relative;min-height:0;border:1px solid var(--line);background:var(--ocean);overflow:hidden;touch-action:none;cursor:grab}
 .chart.dragging{cursor:grabbing}
 canvas{display:block;width:100%;height:100%}
@@ -42,7 +42,7 @@ canvas{display:block;width:100%;height:100%}
 .views button{font:500 .78rem var(--f-body);letter-spacing:.04em;padding:6px 10px;border:1px solid var(--line);
   background:var(--panel);color:var(--ink);cursor:pointer}
 .views button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
-.views button:focus-visible,.sat:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .legend{position:absolute;left:10px;bottom:10px;font:.72rem var(--f-mono);color:var(--muted);background:var(--panel);
   border:1px solid var(--line);padding:5px 8px;display:flex;gap:12px;flex-wrap:wrap}
 .legend i{display:inline-block;width:18px;height:0;border-top:2px solid var(--muted);vertical-align:middle;margin-right:5px}
@@ -57,12 +57,35 @@ h2{font-family:var(--f-display);font-weight:500;font-size:.85rem;letter-spacing:
 .sat .name{font-weight:600;font-size:.86rem}
 .sat .dir{font:.75rem var(--f-mono);color:var(--muted)}
 .sat .pos{grid-column:2/4;font:.76rem var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
-.pass{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 10px;padding:8px 0;border-top:1px solid var(--line)}
+.pass{width:100%;background:none;color:inherit;font:inherit;text-align:left;border:0;cursor:pointer;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 10px;padding:8px 0;border-top:1px solid var(--line)}
 .pass .who{font-weight:600;font-size:.84rem;display:flex;align-items:center;gap:6px}
 .pass .cd{font:500 .84rem var(--f-mono);font-variant-numeric:tabular-nums;text-align:right}
 .pass .when{font:.76rem var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
 .pass .meta{font-size:.72rem;color:var(--muted);text-align:right}
 .pass.live .cd{color:var(--now)}
+.pass[aria-pressed="true"]{box-shadow:inset 3px 0 var(--accent);padding-left:9px;background:var(--bg)}
+.pass .when,.pass .statuses,.pass .notes{grid-column:1/-1}
+.statuses{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.pass .notes{font-size:.75rem;color:var(--warn);margin-top:4px}
+.window{margin:0;font-size:.8rem;color:var(--muted);line-height:1.6}
+.window.old{color:var(--warn)}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.controls label{display:flex;flex-direction:column;gap:3px;font-size:.76rem;color:var(--muted)}
+.controls .check{grid-column:1/-1;flex-direction:row;align-items:center}
+input,select{min-width:0;width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);padding:6px}
+input[type="checkbox"]{width:auto}
+.timeline-panel{border:1px solid var(--line);background:var(--panel);padding:12px;overflow:hidden}
+.timeline-axis{display:flex;justify-content:space-between;margin:0 0 8px 100px;font-size:.7rem;color:var(--muted)}
+.timeline-row{display:grid;grid-template-columns:100px 1fr;gap:0;align-items:center;min-height:28px;font-size:.75rem}
+.timeline-track{position:relative;height:24px;border-bottom:1px solid var(--line);margin-right:10px}
+.timeline-pass{position:absolute;top:2px;width:10px;height:19px;border:1px solid var(--ink);padding:0;cursor:pointer;border-radius:2px;transform:translateX(-50%)}
+.timeline-pass[aria-pressed="true"]{outline:2px solid var(--accent);outline-offset:2px}
+#mapTime{position:absolute;right:10px;top:10px;background:var(--panel);padding:6px;font-size:.75rem;max-width:55%;text-align:right}
+#liveMode{margin-left:8px;font:inherit;padding:3px 6px;background:var(--panel);color:var(--accent);border:1px solid var(--line);cursor:pointer}
+#passDetails{font-size:.8rem;line-height:1.6;border-top:1px solid var(--line);padding-top:10px}
+#passDetails p{margin:5px 0}
+#resultCount{font-size:.76rem;color:var(--muted);margin:6px 0}
+.chip.aged,.chip.stale,.chip.unknown,.chip.not_expected,.chip.planned_other{color:var(--warn)}
 .chip{font:500 .64rem var(--f-body);letter-spacing:.06em;text-transform:uppercase;padding:1px 5px;border:1px solid currentColor;border-radius:2px}
 .chip.no{color:var(--warn)}
 .empty{font-size:.82rem;color:var(--muted);padding:8px 0;border-top:1px solid var(--line)}
@@ -71,8 +94,10 @@ footer .old{color:var(--warn)}
 @media (max-width:860px){
   .app{height:auto}
   main{grid-template-columns:minmax(0,1fr)}
+  .visuals{grid-template-rows:auto auto}
   .chart{height:58vh;min-height:320px}
   .clocks{margin-left:0;width:100%}
+  #mapTime{top:54px;max-width:calc(100% - 20px)}
 }
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
@@ -86,18 +111,40 @@ footer .old{color:var(--warn)}
       <div class="clock"><span id="locLbl">ROI local</span><strong id="loc">--:--:--</strong></div>
     </div>
   </header>
+  <p id="windowStatus" class="window" role="status"></p>
   <main>
+    <div class="visuals">
     <div class="chart" id="chart" aria-label="Map of satellite positions, ground tracks and swaths">
       <canvas id="cv"></canvas>
+      <div id="mapTime"></div>
       <div class="views">
         <button type="button" id="vWorld" aria-pressed="false">World</button>
         <button type="button" id="vRoi" aria-pressed="true">ROI region</button>
       </div>
       <div class="legend"><span><i class="dash"></i>last 45 min</span><span><i></i>next 90 min</span><span><i class="roi"></i>ROI</span><span>shaded: night</span></div>
     </div>
+    <section class="timeline-panel" aria-label="Overpass timeline">
+      <h2>Pass timeline</h2><div id="timeline"></div>
+      <div id="passDetails" aria-live="polite">Select a pass to inspect its footprint and timing.</div>
+    </section>
+    </div>
     <aside>
-      <section><h2>Satellites now</h2><div id="sats"></div></section>
-      <section><h2>Next ROI overpasses</h2><div id="passes"></div></section>
+      <section><h2 id="satHeading">Satellites now</h2><div id="sats"></div></section>
+      <section><h2>Plan an observation</h2>
+        <div class="controls">
+          <label>Satellite<select id="filterSatellite"><option value="">All satellites</option></select></label>
+          <label>Minimum coverage (%)<input id="filterCoverage" type="number" min="0" max="100" value="0" step="1"></label>
+          <label>Acquisition evidence<select id="filterPlan">
+            <option value="">All statuses</option><option value="planned_nominal">Planned (nominal)</option>
+            <option value="planned_other">Planned (other mode)</option><option value="not_planned">No plan match</option>
+            <option value="unknown">Unknown (no plan loaded)</option><option value="not_checked">Not checked (Landsat)</option>
+          </select></label>
+          <label>Imaging eligibility<select id="filterImaging"><option value="">All passes</option><option value="expected">Expected</option><option value="not_expected">Not expected</option></select></label>
+          <label>Sort passes<select id="sortPasses"><option value="soonest">Soonest</option><option value="coverage">Highest coverage</option></select></label>
+          <label class="check"><input id="showPast" type="checkbox">Include past passes</label>
+        </div>
+        <p id="resultCount" role="status"></p><div id="passes"></div>
+      </section>
       <footer id="foot"></footer>
     </aside>
   </main>
@@ -112,7 +159,8 @@ const D2R = Math.PI / 180, R2D = 180 / Math.PI, RE = 6371.0088;
 
 // ---------- data
 const sats = P.sats.map(s => ({...s, rec: satellite.twoline2satrec(s.line1, s.line2), on: true, track: null}));
-const passes = P.passes.map(p => ({...p, tin: new Date(p.in), tca: new Date(p.ca), tout: new Date(p.out)}));
+let selectedId = null;
+const passes = P.passes.map((p, id) => ({...p, id, tin: new Date(p.in), tca: new Date(p.ca), tout: new Date(p.out)}));
 const roiRings = [];
 (function collect(g){
   if (!g) return;
@@ -125,6 +173,16 @@ const roiRings = [];
 const roiPts = roiRings.flat();
 const roiC = roiPts.reduce((a, p) => [a[0] + p[0] / roiPts.length, a[1] + p[1] / roiPts.length], [0, 0]);
 const landRings = LAND ? LAND.rings.map(r => { const o = []; for (let i = 0; i < r.length; i += 2) o.push([r[i] * LAND.scale, r[i + 1] * LAND.scale]); return o; }) : [];
+
+function selectedPass(){ return passes.find(p => p.id === selectedId); }
+function displayTime(){ const p = selectedPass(); return p ? p.tca : new Date(); }
+function footprintRings(geometry){
+  if (!geometry) return [];
+  if (geometry.type === "Polygon") return geometry.coordinates;
+  if (geometry.type === "MultiPolygon") return geometry.coordinates.flat();
+  if (geometry.type === "GeometryCollection") return geometry.geometries.flatMap(footprintRings);
+  return [];
+}
 
 // ---------- orbit helpers
 function sub(rec, d){
@@ -240,7 +298,7 @@ function drawNight(now){
 
 function draw(){
   if (!W) return;
-  const now = new Date();
+  const now = displayTime();
   drawLand();
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
   ctx.drawImage(land, 0, 0);
@@ -255,14 +313,27 @@ function draw(){
     ctx.globalAlpha = 0.18; ctx.fill(); ctx.globalAlpha = 1; ctx.stroke();
     ctx.beginPath(); ctx.arc(X(roiC[0] + sh), Y(roiC[1]), 2.5, 0, 7); ctx.fill();
   }
+  // Exported display footprint of the selected pass (not a newly computed prediction).
+  const chosen = selectedPass();
+  if (chosen && chosen.footprint){
+    const rings = footprintRings(chosen.footprint);
+    const colour = sats.find(s => s.name === chosen.sat)?.colour || theme.ink;
+    ctx.strokeStyle = colour; ctx.fillStyle = colour; ctx.lineWidth = 2;
+    for (const sh of SH){
+      ctx.beginPath(); rings.forEach(r => { pathRing(ctx, unwrap(r), sh); ctx.closePath(); });
+      ctx.globalAlpha = 0.28; ctx.fill("evenodd"); ctx.globalAlpha = 1;
+      ctx.setLineDash([6, 3]); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
   // tracks, swaths, markers
   for (const s of sats){
-    if (!s.on || !s.track) continue;
+    if (!s.on || !s.track || (filterSatellite.value && filterSatellite.value !== s.name)) continue;
     const tr = unwrap(s.track), cur = sub(s.rec, now);
     if (!cur) continue;
     const curU = tr.reduce((a, p) => Math.abs(p[2]) < Math.abs(a[2]) ? p : a, tr[0]);
     const lonOff = Math.round((curU[0] - cur.lon) / 360) * 360;
     const sw = unwrap(computeSwath(s, now));
+    if (!sw.length) continue;
     const swOff = Math.round((sw[0][0] - (curU[0])) / 360) * 360;
     for (const sh of SH){
       ctx.fillStyle = s.colour; ctx.globalAlpha = 0.22; ctx.beginPath(); pathRing(ctx, sw, sh - swOff); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
@@ -293,49 +364,153 @@ function countdown(ms){
 function esc(t){ return String(t).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
 const satBox = document.getElementById("sats");
+const filterSatellite = document.getElementById("filterSatellite");
+const filterCoverage = document.getElementById("filterCoverage");
+const filterPlan = document.getElementById("filterPlan");
+const filterImaging = document.getElementById("filterImaging");
+const sortPasses = document.getElementById("sortPasses");
+const showPast = document.getElementById("showPast");
+showPast.checked = Boolean(P.window_end && new Date(P.window_end) < new Date());
 sats.forEach((s, i) => {
+  const option = document.createElement("option"); option.value = s.name; option.textContent = s.name; filterSatellite.appendChild(option);
   const b = document.createElement("button"); b.type = "button"; b.className = "sat"; b.id = "sat" + i;
   b.setAttribute("aria-pressed", "true"); b.title = "Show or hide " + s.name;
   b.innerHTML = `<span class="dot" style="background:${s.colour}"></span><span class="name">${esc(s.name)}</span><span class="dir"></span><span class="pos"></span>`;
-  b.addEventListener("click", () => { s.on = !s.on; b.setAttribute("aria-pressed", s.on); draw(); renderPasses(new Date()); });
+  b.addEventListener("click", () => { s.on = !s.on; b.setAttribute("aria-pressed", s.on); resetSelection(); });
   satBox.appendChild(b); s.el = b;
 });
-
-function renderSats(now){
+function renderSats(when){
   for (const s of sats){
-    const c = sub(s.rec, now), n = sub(s.rec, new Date(now.getTime() + 2000));
+    const c = sub(s.rec, when), n = sub(s.rec, new Date(when.getTime() + 2000));
     if (!c || !n) continue;
     s.el.querySelector(".dir").textContent = n.lat > c.lat ? "↑ asc" : "↓ desc";
     s.el.querySelector(".pos").textContent =
       `${Math.abs(c.lat).toFixed(2).padStart(5)}°${c.lat >= 0 ? "N" : "S"}  ${Math.abs(c.lon).toFixed(2).padStart(6)}°${c.lon >= 0 ? "E" : "W"}  ${c.alt.toFixed(0)} km`;
   }
 }
+function visiblePasses(now){
+  const enabled = new Set(sats.filter(s => s.on).map(s => s.name));
+  const minimum = Number(filterCoverage.value);
+  return passes.filter(p => enabled.has(p.sat)
+    && (!filterSatellite.value || p.sat === filterSatellite.value)
+    && Number.isFinite(minimum) && p.cov >= Math.max(0, Math.min(100, minimum))
+    && (!filterPlan.value || p.status.acquisition === filterPlan.value)
+    && (!filterImaging.value || p.status.imaging === filterImaging.value)
+    && (showPast.checked || p.tout >= now || p.id === selectedId))
+    .sort((a, b) => (sortPasses.value === "coverage" ? b.cov - a.cov : 0) || a.tca - b.tca || a.id - b.id);
+}
+function statusChips(p){
+  return `<span class="chip">Geometry intersects</span><span class="chip ${p.status.imaging}">${esc(p.status.imaging_label)}</span>`
+    + `<span class="chip ${p.status.acquisition}">${esc(p.status.acquisition_label)}</span>`
+    + `<span class="chip ${p.status.orbital_data}">TLE ${esc(p.status.orbital_data)} · ${Math.abs(p.status.tle_age_days).toFixed(1)} d from pass</span>`;
+}
+function passClock(p, now){
+  return p.tout < now ? "past pass" : now >= p.tin ? "pass active" : "in " + countdown(p.tin - now);
+}
+let listKey = "";
 function renderPasses(now){
-  const box = document.getElementById("passes");
-  const on = new Set(sats.filter(s => s.on).map(s => s.name));
-  const up = passes.filter(p => p.tout >= now && on.has(p.sat)).sort((a, b) => a.tin - b.tin).slice(0, 10);
-  if (!passes.length){ box.innerHTML = `<div class="empty">No overpass predictions were exported with this page. Pass <code>passes=</code> to <code>export_live_tracker_html()</code>.</div>`; return; }
-  if (!up.length){ box.innerHTML = `<div class="empty">No remaining predicted overpasses. Re-run the prediction notebook and re-export.</div>`; return; }
-  box.innerHTML = up.map(p => {
-    const s = sats.find(x => x.name === p.sat), live = now >= p.tin;
-    const plan = p.plan && p.plan.startsWith("not planned") ? `<span class="chip no">not in ESA plan</span>` : "";
-    return `<div class="pass${live ? " live" : ""}">
-      <div class="who"><span class="dot" style="background:${s ? s.colour : "#888"}"></span>${esc(p.sat)} ${plan}</div>
-      <div class="cd">${live ? "imaging now" : "in " + countdown(p.tin - now)}</div>
-      <div class="when">${fmtLocDay.format(p.tca)} local · ${fmtUTCDay.format(p.tca)} UTC</div>
-      <div class="meta">${Math.round(p.cov)}% of ROI · ${p.dir === "Descending" ? "desc" : "asc"}</div></div>`;
-  }).join("");
+  const box = document.getElementById("passes"), visible = visiblePasses(now);
+  document.getElementById("resultCount").textContent = `${visible.length} of ${passes.length} exported passes · `
+    + (sortPasses.value === "coverage" ? "highest coverage first; ties use earliest time" : "earliest closest approach first");
+  const key = visible.map(p => p.id).join(",") + ":" + selectedId;
+  if (key !== listKey){
+    listKey = key;
+    const focused = document.activeElement?.dataset.pass;
+    if (!visible.length){
+      box.innerHTML = `<div class="empty">${!P.predictions_included ? "This report has no prediction list. Generate a report with predictions to plan an observation." : !passes.length ? "No passes met the prediction window and filters. Generate a longer window or relax the prediction filters." : "No passes match these view filters. Adjust the filters, enable a satellite, or include past passes."}</div>`;
+    } else {
+      box.innerHTML = visible.map(p => {
+        const s = sats.find(x => x.name === p.sat);
+        return `<button type="button" class="pass" data-pass="${p.id}" aria-pressed="${p.id === selectedId}">
+          <span class="who"><span class="dot" style="background:${s ? s.colour : "#888"}"></span>${esc(p.sat)}</span>
+          <span class="cd"></span><span class="when">${fmtLocDay.format(p.tca)} · ${esc(P.tz)}<br>${fmtUTCDay.format(p.tca)} UTC</span>
+          <span class="meta">${p.cov.toFixed(1)}% of ROI · ${p.dir === "Descending" ? "descending" : "ascending"}</span>
+          <span class="statuses">${statusChips(p)}</span>
+          <span class="notes">${p.status.warnings.map(w => esc(w.message)).join(" ")}</span></button>`;
+      }).join("");
+    }
+    if (focused !== undefined) box.querySelector(`[data-pass="${focused}"]`)?.focus();
+    renderTimeline(visible);
+  }
+  box.querySelectorAll("[data-pass]").forEach(el => {
+    const p = passes[Number(el.dataset.pass)];
+    el.querySelector(".cd").textContent = passClock(p, now);
+    el.classList.toggle("live", now >= p.tin && now <= p.tout);
+  });
+}
+function renderTimeline(visible){
+  const target = document.getElementById("timeline");
+  if (!visible.length){ target.innerHTML = `<p class="empty">No passes to show with these filters.</p>`; return; }
+  const start = new Date(P.window_start || Math.min(...passes.map(p => p.tin.getTime()))).getTime();
+  const end = new Date(P.window_end || Math.max(...passes.map(p => p.tout.getTime()))).getTime();
+  const span = Math.max(1000, end - start);
+  target.innerHTML = `<div class="timeline-axis"><span>${fmtLocDay.format(start)}</span><span>${fmtLocDay.format(end)}</span></div>`
+    + sats.filter(s => visible.some(p => p.sat === s.name)).map(s =>
+      `<div class="timeline-row"><span>${esc(s.name)}</span><div class="timeline-track">`
+      + visible.filter(p => p.sat === s.name).map(p =>
+        `<button type="button" class="timeline-pass" data-pass="${p.id}" aria-pressed="${p.id === selectedId}" style="left:${Math.max(0, Math.min(100, (p.tca - start) / span * 100))}%;background:${s.colour}" title="${esc(p.sat)} · ${esc(fmtLocDay.format(p.tca))} · ${p.cov.toFixed(1)}% coverage" aria-label="${esc(p.sat)} ${esc(fmtLocDay.format(p.tca))}, ${p.cov.toFixed(1)} percent coverage"></button>`
+      ).join("") + `</div></div>`
+    ).join("");
+}
+function selectPass(id){
+  selectedId = id;
+  const p = selectedPass(), when = displayTime();
+  sats.forEach(s => computeTrack(s, when));
+  if (p){
+    const points = footprintRings(p.footprint).flat().concat(roiPts);
+    const longitudes = points.map(c => roiC[0] + ((c[0] - roiC[0] + 540) % 360) - 180);
+    const latitudes = points.map(c => c[1]);
+    const west = Math.min(...longitudes), east = Math.max(...longitudes), south = Math.min(...latitudes), north = Math.max(...latitudes);
+    view = {cx: (west + east) / 2, cy: (south + north) / 2, k: Math.min(400, W / (east - west + 4), H / (north - south + 4))};
+    landKey = "";
+    document.getElementById("vWorld").setAttribute("aria-pressed", "false");
+    document.getElementById("vRoi").setAttribute("aria-pressed", "true");
+  }
+  document.getElementById("satHeading").textContent = p ? "Satellites at selected pass" : "Satellites now";
+  const detail = document.getElementById("passDetails");
+  detail.innerHTML = p ? `<strong>${esc(p.sat)} · ${fmtLocDay.format(p.tca)} · ${esc(P.tz)}</strong>`
+    + `<p>Crossing: ${fmtLoc.format(p.tin)} – ${fmtLoc.format(p.tout)} local. Closest approach: ${esc(p.ca)} UTC.</p>`
+    + `<p>${p.cov.toFixed(1)}% ROI coverage · view angle ${p.view_angle_deg.toFixed(2)}° · sun elevation ${p.sun_elevation_deg.toFixed(1)}° · anchor edge margin ${p.edge_margin_km.toFixed(1)} km.</p>`
+    + `<div class="statuses">${statusChips(p)}</div><p>${p.status.warnings.map(w => esc(w.message)).join(" ")}</p>`
+    + `<p>The dashed outline is the exported display footprint. Acquisition, available imagery and cloud-free conditions are not guaranteed.</p>`
+    : "Select a pass to inspect its footprint and timing.";
+  tick();
+}
+function resetSelection(){ listKey = ""; selectPass(null); }
+for (const id of ["passes", "timeline"]){
+  document.getElementById(id).addEventListener("click", event => {
+    const button = event.target.closest("button[data-pass]");
+    if (button) selectPass(Number(button.dataset.pass));
+  });
+}
+for (const control of [filterSatellite, filterCoverage, filterPlan, filterImaging, sortPasses, showPast]){
+  control.addEventListener("change", resetSelection);
+}
+function renderWindow(now){
+  const el = document.getElementById("windowStatus"), expired = P.window_end && now > new Date(P.window_end);
+  el.classList.toggle("old", Boolean(expired));
+  el.textContent = P.window_start && P.window_end
+    ? `${expired ? "Prediction window expired. Refresh orbital inputs and generate a new report. " : "Prediction window: "}${fmtLocDay.format(new Date(P.window_start))} – ${fmtLocDay.format(new Date(P.window_end))} · ${P.tz}. UTC: ${P.window_start} – ${P.window_end}.`
+    : "Prediction window unavailable. This page shows propagated positions; generate predictions to plan observations.";
+  const mapTime = document.getElementById("mapTime"), p = selectedPass();
+  // Rebuild only on mode changes so keyboard focus on the live button survives ticks.
+  if (mapTime.dataset.mode !== String(selectedId)){
+    mapTime.dataset.mode = String(selectedId);
+    mapTime.innerHTML = p ? `<span>Planning · ${fmtLocDay.format(p.tca)} local</span><button type="button" id="liveMode">Return to live</button>` : "Live map";
+    document.getElementById("liveMode")?.addEventListener("click", () => selectPass(null));
+  }
 }
 function renderFoot(now){
-  const ages = sats.map(s => { const a = (now - new Date(s.epoch)) / 86400000; return `<span class="${a > 7 ? "old" : ""}">${esc(s.name)} ${a.toFixed(1)} d</span>`; });
+  const ages = sats.map(s => { const a = (now - new Date(s.epoch)) / 86400000; return `<span class="${Math.abs(a) > 7 ? "old" : ""}">${esc(s.name)} ${a.toFixed(1)} d</span>`; });
   document.getElementById("foot").innerHTML =
-    `TLE age: ${ages.join(" · ")}<br>Positions propagated in your browser with SGP4. Swaths use nominal widths (MSI 290 km, OLI 185 km). ` +
-    `Predictions generated ${esc(P.generated.replace("T", " ").replace("Z", " UTC"))}; refresh TLEs and re-export when ages exceed a week.`;
+    `TLE age now: ${ages.join(" · ")}<br>Report generated ${esc(P.generated.replace("T", " ").replace("Z", " UTC"))}. `
+    + `Pass age labels compare elements with each pass, not with today. Fresh ≤7 d; aged ≤14 d; stale >14 d. These are refresh reminders, not accuracy estimates. `
+    + `Positions and nominal live swaths are propagated in your browser. Missing ESA plans mean unknown acquisition. Landsat acquisition and imagery availability are not checked.`;
 }
 
 // ---------- interaction
 let drag = null;
-chart.addEventListener("pointerdown", e => { if (e.target.closest(".views")) return; drag = {x: e.clientX, y: e.clientY, cx: view.cx, cy: view.cy}; chart.classList.add("dragging"); chart.setPointerCapture(e.pointerId); });
+chart.addEventListener("pointerdown", e => { if (e.target.closest("button, input, select, label")) return; drag = {x: e.clientX, y: e.clientY, cx: view.cx, cy: view.cy}; chart.classList.add("dragging"); chart.setPointerCapture(e.pointerId); });
 chart.addEventListener("pointermove", e => { if (!drag) return; view.cx = drag.cx - (e.clientX - drag.x) / view.k; view.cy = Math.max(-85, Math.min(85, drag.cy + (e.clientY - drag.y) / view.k)); draw(); });
 const endDrag = () => { drag = null; chart.classList.remove("dragging"); };
 chart.addEventListener("pointerup", endDrag); chart.addEventListener("pointercancel", endDrag);
@@ -357,13 +532,13 @@ document.getElementById("roiName").textContent = P.roi_name;
 document.getElementById("tzName").textContent = P.tz;
 let lastTrack = 0;
 function tick(){
-  const now = new Date();
-  if (now - lastTrack > 15000){ sats.forEach(s => computeTrack(s, now)); lastTrack = now.getTime(); }
+  const now = new Date(), when = displayTime();
+  if (selectedId === null && now - lastTrack > 15000){ sats.forEach(s => computeTrack(s, now)); lastTrack = now.getTime(); }
   document.getElementById("utc").textContent = fmtUTC.format(now);
   const parts = fmtLoc.formatToParts(now);
   document.getElementById("loc").textContent = parts.filter(p => ["hour","minute","second","literal"].includes(p.type)).map(p => p.value).join("").trim();
   document.getElementById("locLbl").textContent = "ROI local · " + (parts.find(p => p.type === "timeZoneName") || {}).value;
-  renderSats(now); renderPasses(now); renderFoot(now); draw();
+  renderSats(when); renderPasses(now); renderWindow(now); renderFoot(now); draw();
 }
 readTheme();
 tick();

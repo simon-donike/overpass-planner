@@ -10,9 +10,11 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
+from shapely.geometry import mapping
 
 from ..core.geometry import resolve_roi_timezone
 from ..core.orbits import SATELLITE_CATALOGUE, _resolve_satellites
+from ..presentation import ASSUMPTIONS, describe_pass, json_value
 from ..types import SatelliteSelection, TLERecord
 
 
@@ -146,6 +148,11 @@ def export_live_tracker_html(
                     "dir": r["direction"],
                     "exp": bool(r["imaging_expected"]),
                     "plan": r.get("esa_plan_status") if "esa_plan_status" in r else None,
+                    "status": describe_pass(r),
+                    "footprint": mapping(r.geometry),
+                    "view_angle_deg": float(r["view_angle_deg"]),
+                    "sun_elevation_deg": float(r["sun_elevation_deg"]),
+                    "edge_margin_km": float(r["edge_margin_km"]),
                 }
             )
     payload = {
@@ -155,6 +162,10 @@ def export_live_tracker_html(
         "roi": json.loads(gpd.GeoSeries([roi_gdf.geometry.iloc[0]]).to_json()),
         "sats": sats,
         "passes": plist,
+        "predictions_included": passes is not None,
+        "window_start": passes.attrs.get("window_start_utc") if passes is not None else None,
+        "window_end": passes.attrs.get("window_end_utc") if passes is not None else None,
+        "assumptions": ASSUMPTIONS,
         "generated": pd.Timestamp.now(tz="UTC").strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     resources = files("eo_overpass_predictor.resources")
@@ -166,7 +177,7 @@ def export_live_tracker_html(
 
     html = (
         template.replace("__TITLE__", escape(title))
-        .replace("/*__PAYLOAD__*/null", safe(json.dumps(payload)))
+        .replace("/*__PAYLOAD__*/null", safe(json.dumps(json_value(payload), allow_nan=False)))
         .replace("/*__LAND__*/null", land)
     )
     if standalone:

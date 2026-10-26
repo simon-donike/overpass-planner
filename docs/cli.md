@@ -48,3 +48,23 @@ Each terminal/JSON/HTML pass separates:
 Per-pass notes highlight aged elements, margins near the nominal swath edge,
 unknown plans and non-nominal acquisition modes. Imagery availability and cloud
 cover are not checked. Keep predictions near the element epoch.
+
+## Use the HTML planner
+
+Select a pass in the list or timeline to move the map and satellite telemetry to
+its closest-approach time. The map highlights its exported display footprint
+and frames the ROI and footprint. **Return to live** resumes real-time propagation;
+the clocks always show current UTC and ROI-local time.
+
+Filters select satellites, minimum coverage, acquisition evidence and imaging
+eligibility. Sorting offers earliest closest approach or highest coverage, with
+earlier time breaking coverage ties. The timeline remains chronological. Past
+passes are hidden by default; expired reports automatically include past passes
+for inspection. The prediction window and expired-report notice are visible
+above the map. An active crossing is labelled **pass active**, without implying
+an acquisition was observed.
+
+These are view filters on a snapshot. To include passes excluded by the original
+prediction options, generate a new report. Live positions do not refresh embedded
+TLEs or extend the prediction window. As before, satellite.js and fonts load from
+public CDNs; the HTML report is not a fully offline browser bundle.
