@@ -1,4 +1,4 @@
-# CLI
+# CLI and automation
 
 ## Find upcoming passes
 
@@ -68,3 +68,78 @@ These are view filters on a snapshot. To include passes excluded by the original
 prediction options, generate a new report. Live positions do not refresh embedded
 TLEs or extend the prediction window. As before, satellite.js and fonts load from
 public CDNs; the HTML report is not a fully offline browser bundle.
+
+## JSON response contract (1.0)
+
+```bash
+eo-overpass next --point 144.96 -37.82 --days 7 --json > passes.json
+eo-overpass satellites --json
+eo-overpass cache info --json
+```
+
+Place `--json` after the leaf command (`cache info --json`, for example).
+`next`, `predict`, `tracker`, `satellites`, `cache info` and `cache clear` emit one
+strict JSON response on stdout; progress, warnings and readable error diagnostics
+go to stderr. `--help` retains ordinary help output. Shell/process failures and
+unexpected programming errors are outside the response contract.
+
+The authoritative [JSON Schema](cli-output.schema.json) describes all response
+variants. Successful prediction responses contain:
+
+| Field | Meaning |
+|---|---|
+| `schema_version`, `ok`, `command` | Contract version, success flag, invoked command. |
+| `status`, `count`, `passes` | `ok` or `empty`, count, and pass records. Empty predictions are successful with `passes: []`. |
+| `generated_at` | UTC time the response was generated. |
+| `request` | Resolved UTC window, ROI geometry/CRS/name, timezone, canonical satellites, filters, sampling steps, offline mode and plan request. |
+| `provenance` | Package version and each satellite's TLE source, epoch, NORAD ID and SHA-256 of `line1 + "\n" + line2` (UTF-8). |
+| `assumptions` | Scientific and interpretation limitations. |
+| `warnings` | Runtime/retrieval diagnostics, each with a `code` and `message`. Pass-specific warnings are in each pass's `status.warnings`. |
+| `output` | Absolute requested export path, or `null` when no file was requested. |
+
+Each pass includes existing scientific columns, a GeoJSON `geometry`, and a
+`status` object. Machine codes are `geometry: intersects`,
+`imaging: expected|not_expected`,
+`acquisition: planned_nominal|planned_other|not_planned|unknown|not_checked`,
+`orbital_data: fresh|aged|stale`, and `imagery: not_checked`. Human label fields
+are for display; use codes for decisions. Optional ESA fields are present when
+plans were cross-checked. Missing values serialize as `null`, never NaN.
+
+UTC timestamps end in `Z`; local timestamps include their date-specific UTC
+offset, retaining subsecond model times. `.json` export paths continue to mean
+GeoJSON footprints; `--json` controls the stdout response independently.
+
+Expected errors have the form:
+
+```json
+{"schema_version":"1.0","ok":false,"command":"next","error":{"code":"invalid_input","message":"Choose exactly one location input."}}
+```
+
+Exit codes remain **0** for success (including empty results), **2** for invalid
+inputs (including parsing errors), and **1** for operational failures, whose
+error code is `operational_error`. Consumers should tolerate additional fields;
+removing fields or changing meanings requires a schema version change.
+
+## Optional browser verification
+
+Python tests cover the CLI contract, serialization and labels. The browser check
+also exercises actual planner selection, keyboard controls, sorting, all filters,
+returning to live mode, expired windows, empty states and mobile overflow. It
+uses synthetic status labels on frozen prediction geometry, not observational
+acquisition evidence. With Node.js installed, a separate temporary tool directory
+keeps browser dependencies outside the Python package:
+
+```bash
+npm install --prefix /tmp/eo-browser-tools playwright@1.58.2
+/tmp/eo-browser-tools/node_modules/.bin/playwright install chromium
+curl -fsSL https://cdn.jsdelivr.net/npm/satellite.js@5.0.0/dist/satellite.min.js \
+  -o /tmp/eo-satellite.min.js
+EO_BROWSER_TESTS=1 \
+EO_PLAYWRIGHT_MODULE=/tmp/eo-browser-tools/node_modules/playwright \
+EO_SATELLITE_JS=/tmp/eo-satellite.min.js \
+uv run pytest tests/test_planner_browser.py -q
+```
+
+The test itself serves the local satellite.js file and blocks font requests; it
+needs no network data. `EO_CHROMIUM_PATH` optionally selects an existing Chromium
+executable. The ordinary Python suite skips this opt-in browser check.

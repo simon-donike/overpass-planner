@@ -100,6 +100,10 @@ Use `next --help`, `predict --help` or `tracker --help` for all options. `--sate
 
 `--plans` uses local KML/KMZ files or a directory. `--fetch-plans` explicitly retrieves ESA plans and cannot be combined with `--plans` or `--offline`. Missing optional plans yield **no plan loaded**, which means unknown acquisition status. Exit codes are 0 for success (including an empty prediction), 2 for invalid inputs, and 1 for operational failures.
 
+All leaf commands support `--json` for one versioned response on stdout, with
+diagnostics on stderr, structured errors, resolved inputs, and TLE provenance.
+See the [CLI and automation guide](docs/cli.md) and [JSON Schema](docs/cli-output.schema.json).
+
 ## Offline operation and caches
 
 Installing from PyPI does not require storing data in `/tmp` or inside the installed package. Reusable downloads belong in the OS user cache, temporary work belongs in the system temporary directory, and reports belong at your chosen output path.

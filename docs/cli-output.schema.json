@@ -1,0 +1,613 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "eo-overpass CLI responses, version 1.0",
+  "description": "One JSON response on stdout for supported commands with --json. Additional fields may be added compatibly.",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "ok",
+        "command",
+        "status",
+        "generated_at",
+        "request",
+        "provenance",
+        "assumptions",
+        "warnings",
+        "count",
+        "passes",
+        "output"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "ok": {
+          "const": true
+        },
+        "command": {
+          "enum": [
+            "next",
+            "predict",
+            "tracker"
+          ]
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "empty"
+          ]
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "request": {
+          "$ref": "#/$defs/request"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/warning"
+          }
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pass"
+          }
+        },
+        "output": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "ok",
+        "command",
+        "satellites"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "ok": {
+          "const": true
+        },
+        "command": {
+          "const": "satellites"
+        },
+        "satellites": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "satellite",
+              "alias",
+              "norad_id",
+              "mission",
+              "sensor",
+              "swath_km",
+              "lat_limits",
+              "colour",
+              "note"
+            ],
+            "properties": {
+              "satellite": {
+                "type": "string"
+              },
+              "alias": {
+                "type": "string"
+              },
+              "norad_id": {
+                "type": "integer"
+              },
+              "mission": {
+                "type": "string"
+              },
+              "sensor": {
+                "type": "string"
+              },
+              "swath_km": {
+                "type": "number"
+              },
+              "lat_limits": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "colour": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "ok",
+        "command",
+        "path",
+        "files",
+        "bytes"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "ok": {
+          "const": true
+        },
+        "command": {
+          "const": "cache info"
+        },
+        "path": {
+          "type": "string"
+        },
+        "files": {
+          "type": "integer"
+        },
+        "bytes": {
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "ok",
+        "command",
+        "path",
+        "files_removed",
+        "bytes_removed"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "ok": {
+          "const": true
+        },
+        "command": {
+          "const": "cache clear"
+        },
+        "path": {
+          "type": "string"
+        },
+        "files_removed": {
+          "type": "integer"
+        },
+        "bytes_removed": {
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "ok",
+        "command",
+        "error"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "ok": {
+          "const": false
+        },
+        "command": {
+          "type": "string"
+        },
+        "error": {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "enum": [
+                "invalid_input",
+                "operational_error"
+              ]
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "warning": {
+      "type": "object",
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "pass_status": {
+      "type": "object",
+      "required": [
+        "geometry",
+        "imaging",
+        "imaging_label",
+        "acquisition",
+        "acquisition_label",
+        "orbital_data",
+        "tle_age_days",
+        "imagery",
+        "warnings"
+      ],
+      "properties": {
+        "geometry": {
+          "const": "intersects"
+        },
+        "imaging": {
+          "enum": [
+            "expected",
+            "not_expected"
+          ]
+        },
+        "imaging_label": {
+          "type": "string"
+        },
+        "acquisition": {
+          "enum": [
+            "unknown",
+            "not_checked",
+            "planned_nominal",
+            "planned_other",
+            "not_planned"
+          ]
+        },
+        "acquisition_label": {
+          "type": "string"
+        },
+        "orbital_data": {
+          "enum": [
+            "fresh",
+            "aged",
+            "stale"
+          ]
+        },
+        "tle_age_days": {
+          "type": "number"
+        },
+        "imagery": {
+          "const": "not_checked"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/warning"
+          }
+        }
+      }
+    },
+    "geometry": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "Point",
+            "MultiPoint",
+            "LineString",
+            "MultiLineString",
+            "Polygon",
+            "MultiPolygon",
+            "GeometryCollection"
+          ]
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "required": [
+        "roi_name",
+        "roi",
+        "crs",
+        "start_utc",
+        "end_utc",
+        "timezone",
+        "satellites",
+        "min_coverage_pct",
+        "min_sun_elevation_deg",
+        "daytime_descending_only",
+        "offline",
+        "coarse_step_s",
+        "fine_step_s",
+        "plans",
+        "fetch_plans"
+      ],
+      "properties": {
+        "roi_name": {
+          "type": "string"
+        },
+        "roi": {
+          "$ref": "#/$defs/geometry"
+        },
+        "crs": {
+          "const": "EPSG:4326"
+        },
+        "start_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "timezone": {
+          "type": "string"
+        },
+        "satellites": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "min_coverage_pct": {
+          "type": "number"
+        },
+        "min_sun_elevation_deg": {
+          "type": "number"
+        },
+        "daytime_descending_only": {
+          "type": "boolean"
+        },
+        "offline": {
+          "type": "boolean"
+        },
+        "coarse_step_s": {
+          "type": "number"
+        },
+        "fine_step_s": {
+          "type": "number"
+        },
+        "plans": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fetch_plans": {
+          "type": "boolean"
+        }
+      }
+    },
+    "pass": {
+      "type": "object",
+      "required": [
+        "satellite",
+        "mission",
+        "sensor",
+        "norad_id",
+        "direction",
+        "imaging_expected",
+        "roi_coverage_pct",
+        "duration_s",
+        "nadir_offset_km",
+        "edge_margin_km",
+        "view_angle_deg",
+        "max_elevation_deg",
+        "sun_elevation_deg",
+        "sat_altitude_km",
+        "tle_age_days",
+        "roi_entry_utc",
+        "overpass_utc",
+        "roi_exit_utc",
+        "roi_entry_local",
+        "overpass_local",
+        "roi_exit_local",
+        "tle_epoch_utc",
+        "timezone",
+        "utc_offset",
+        "roi_side_of_track",
+        "note",
+        "geometry",
+        "status"
+      ],
+      "properties": {
+        "satellite": {
+          "type": "string"
+        },
+        "mission": {
+          "type": "string"
+        },
+        "sensor": {
+          "type": "string"
+        },
+        "norad_id": {
+          "type": "integer"
+        },
+        "direction": {
+          "enum": [
+            "Ascending",
+            "Descending"
+          ]
+        },
+        "imaging_expected": {
+          "type": "boolean"
+        },
+        "roi_coverage_pct": {
+          "type": "number"
+        },
+        "duration_s": {
+          "type": "number"
+        },
+        "nadir_offset_km": {
+          "type": "number"
+        },
+        "edge_margin_km": {
+          "type": "number"
+        },
+        "view_angle_deg": {
+          "type": "number"
+        },
+        "max_elevation_deg": {
+          "type": "number"
+        },
+        "sun_elevation_deg": {
+          "type": "number"
+        },
+        "sat_altitude_km": {
+          "type": "number"
+        },
+        "tle_age_days": {
+          "type": "number"
+        },
+        "roi_entry_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "overpass_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "roi_exit_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "roi_entry_local": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "overpass_local": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "roi_exit_local": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "tle_epoch_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "timezone": {
+          "type": "string"
+        },
+        "utc_offset": {
+          "type": "string"
+        },
+        "roi_side_of_track": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "geometry": {
+          "$ref": "#/$defs/geometry"
+        },
+        "status": {
+          "$ref": "#/$defs/pass_status"
+        },
+        "esa_plan_status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "esa_datatake_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "esa_relative_orbit": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "package_version",
+        "orbital_elements"
+      ],
+      "properties": {
+        "package_version": {
+          "type": "string"
+        },
+        "orbital_elements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "satellite",
+              "norad_id",
+              "epoch_utc",
+              "source",
+              "sha256"
+            ],
+            "properties": {
+              "satellite": {
+                "type": "string"
+              },
+              "norad_id": {
+                "type": "integer"
+              },
+              "epoch_utc": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "source": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

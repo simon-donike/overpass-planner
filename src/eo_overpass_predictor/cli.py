@@ -1,5 +1,6 @@
 """Noninteractive command-line adapter for the public Python API."""
 
+import json
 import math
 import sys
 import warnings
@@ -19,6 +20,7 @@ from typer.core import TyperCommand
 from . import api
 from .core.orbits import _to_utc_timestamp
 from .io.cache import cache_files, cache_root, cache_session, clear_cache
+from .presentation import SCHEMA_VERSION, json_value, prediction_document
 from .types import TLERecord
 
 app = typer.Typer(
@@ -26,7 +28,49 @@ app = typer.Typer(
 )
 
 
-class _SatelliteCommand(TyperCommand):
+def _emit_json(document: dict[str, Any]) -> None:
+    typer.echo(json.dumps(json_value(document), allow_nan=False, ensure_ascii=False))
+
+
+def _fail(message: str, code: int, command: str, json_output: bool) -> None:
+    if json_output:
+        _emit_json(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "ok": False,
+                "command": command,
+                "error": {
+                    "code": "invalid_input" if code == 2 else "operational_error",
+                    "message": message,
+                },
+            }
+        )
+    typer.echo(f"{'Invalid input' if code == 2 else 'Error'}: {message}", err=True)
+    raise typer.Exit(code)
+
+
+class _MachineCommand(TyperCommand):
+    """Include Click/Typer argument errors in the JSON contract."""
+
+    def parse_args(self, ctx: Any, args: list[str]) -> list[str]:
+        json_output = "--json" in args
+        try:
+            return super().parse_args(ctx, args)
+        except Exception as exc:
+            # Typer versions use either standalone or vendored Click exceptions.
+            # Only translate usage errors; propagate unexpected programming errors.
+            format_message = getattr(exc, "format_message", None)
+            if json_output and getattr(exc, "exit_code", None) == 2 and callable(format_message):
+                command = (
+                    f"cache {ctx.info_name}"
+                    if ctx.parent and ctx.parent.info_name == "cache"
+                    else ctx.info_name
+                )
+                _fail(format_message(), 2, command, True)
+            raise
+
+
+class _SatelliteCommand(_MachineCommand):
     """Translate variadic satellite values into Typer's repeated-option syntax."""
 
     def parse_args(self, ctx: Any, args: list[str]) -> list[str]:
@@ -39,10 +83,10 @@ class _SatelliteCommand(TyperCommand):
             if argument in {"--satellite", "-s"} or argument.startswith("--satellite="):
                 expanded.append(argument)
                 collecting = True
-            elif argument.startswith("-s") and (not argument.startswith("--")):
+            elif argument.startswith("-s") and not argument.startswith("--"):
                 expanded.append(argument)
                 collecting = True
-            elif collecting and (not argument.startswith("-")):
+            elif collecting and not argument.startswith("-"):
                 if expanded[-1] not in {"--satellite", "-s"}:
                     expanded.append("--satellite")
                 expanded.append(argument)
@@ -64,7 +108,8 @@ Satellite = Annotated[
         "--satellite",
         "-s",
         metavar="SATELLITE...",
-        help="Names, aliases or NORAD IDs; space/comma separated or repeated. S2 selects Sentinel-2A/B/C; LS selects Landsat 8/9. Default: all five.",
+        help="Names, aliases or NORAD IDs; space/comma separated or repeated. "
+        "S2 selects Sentinel-2A/B/C; LS selects Landsat 8/9. Default: all five.",
     ),
 ]
 Timezone = Annotated[str | None, typer.Option("--timezone", help="Override the ROI IANA timezone.")]
@@ -97,15 +142,13 @@ FetchPlans = Annotated[
 
 
 @contextmanager
-def _errors(command: str) -> Iterator[None]:
+def _errors(command: str, json_output: bool = False) -> Iterator[None]:
     try:
         yield
     except (ValueError, KeyError, ZoneInfoNotFoundError, ParseError, OverflowError) as exc:
-        typer.echo(f"Invalid input: {exc}", err=True)
-        raise typer.Exit(2) from exc
+        _fail(str(exc), 2, command, json_output)
     except (OSError, RuntimeError, requests.RequestException, ImportError) as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(1) from exc
+        _fail(str(exc), 1, command, json_output)
 
 
 @contextmanager
@@ -136,7 +179,7 @@ def _calculate(
     min_sun_elevation_deg: float = 0,
     daytime_descending_only: bool = True,
 ) -> tuple[gpd.GeoDataFrame, dict[str, TLERecord], gpd.GeoDataFrame]:
-    start_ts, end_ts = (_to_utc_timestamp(start), _to_utc_timestamp(end))
+    start_ts, end_ts = _to_utc_timestamp(start), _to_utc_timestamp(end)
     if end_ts <= start_ts:
         raise ValueError("--end must be later than --start.")
     if not math.isfinite(min_roi_coverage_pct) or not math.isfinite(min_sun_elevation_deg):
@@ -162,7 +205,7 @@ def _calculate(
         min_sun_elevation_deg=min_sun_elevation_deg,
         daytime_descending_only=daytime_descending_only,
     )
-    return (area, tles, passes)
+    return area, tles, passes
 
 
 def _check_plans(
@@ -174,7 +217,7 @@ def _check_plans(
     cache_dir: Path | None,
     diagnostics: list[dict[str, str]],
 ) -> gpd.GeoDataFrame:
-    if not plans and (not fetch_plans):
+    if not plans and not fetch_plans:
         return passes
     plan_source: Path | list[Path] | None = plans
     if fetch_plans:
@@ -198,9 +241,7 @@ def _check_plans(
             plan_source = (
                 cache_dir / "plans"
                 if cache_dir and (cache_dir / "plans").is_dir()
-                else []
-                if cache_dir
-                else None
+                else ([] if cache_dir else None)
             )
     loaded = api.load_s2_acquisition_plans(plan_source)
     return api.crosscheck_s2_acquisition_plan(passes, loaded, area)
@@ -224,6 +265,35 @@ def _output_format(output: Path | None, explicit: str | None = None) -> str | No
     return suffix
 
 
+def _print_prediction(document: dict[str, Any]) -> None:
+    request = document["request"]
+    typer.echo(
+        f"{document['count']} overpass(es) · {request['roi_name']} · {request['timezone']}\n"
+        f"Window (UTC): {request['start_utc']} to {request['end_utc']}"
+    )
+    if not document["passes"]:
+        typer.echo(
+            "No passes meet the selected window and filters. Try a longer window or lower coverage threshold."
+        )
+    else:
+        for row in document["passes"]:
+            status = row["status"]
+            typer.echo(
+                f"\n{row['satellite']} · {row['overpass_local']} local\n"
+                f"  UTC: {row['overpass_utc']} · Coverage: {row['roi_coverage_pct']:.1f}% "
+                f"· Geometry: intersects\n"
+                f"  {status['imaging_label']} · {status['acquisition_label']}\n"
+                f"  TLE: {status['orbital_data']} ({abs(status['tle_age_days']):.1f} days from pass)"
+            )
+            for warning in status["warnings"]:
+                typer.echo(f"  Note: {warning['message']}")
+        typer.echo(
+            "\nExpected imaging and plan matches do not guarantee acquisition or available imagery."
+        )
+    if document["output"]:
+        typer.echo(f"Saved: {document['output']}")
+
+
 def _run_prediction(
     command: str,
     roi: object,
@@ -236,6 +306,7 @@ def _run_prediction(
     cache_dir: Path | None,
     no_cache: bool,
     offline: bool,
+    json_output: bool,
     min_coverage: float = 0,
     min_sun_elevation: float = 0,
     all_passes: bool = False,
@@ -274,17 +345,28 @@ def _run_prediction(
                 )
             else:
                 api.export_overpass_footprints(passes, output)
-    if command == "next":
-        typer.echo(
-            f"{len(passes)} overpass(es) · {passes.attrs['roi_name']} · {passes.attrs['timezone']}"
-        )
-        typer.echo(
-            f"Window (UTC): {passes.attrs['window_start_utc']} to {passes.attrs['window_end_utc']}"
-        )
-        if passes.empty:
-            typer.echo("No passes meet the selected window and filters.")
-        else:
-            typer.echo(api.summarise_overpasses(passes).to_string(index=False))
+    document = prediction_document(
+        command,
+        area,
+        tles,
+        passes,
+        {
+            "min_coverage_pct": min_coverage,
+            "min_sun_elevation_deg": min_sun_elevation,
+            "daytime_descending_only": not all_passes,
+            "offline": offline,
+            "coarse_step_s": 30,
+            "fine_step_s": 1,
+            "plans": str(plans.resolve()) if plans else None,
+            "fetch_plans": fetch_plans,
+        },
+        diagnostics,
+        str(output.resolve()) if output else None,
+    )
+    if json_output:
+        _emit_json(document)
+    else:
+        _print_prediction(document)
 
 
 @app.command("next", cls=_SatelliteCommand)
@@ -317,9 +399,10 @@ def next_command(
     all_passes: AllPasses = False,
     plans: Plans = None,
     fetch_plans: FetchPlans = False,
+    json_output: JsonOutput = False,
 ) -> None:
     """Find upcoming passes for exactly one point, bounding box or ROI file."""
-    with _errors("next"):
+    with _errors("next", json_output):
         if sum(value is not None for value in (point, bbox, roi)) != 1:
             raise ValueError(
                 "Choose exactly one of --point LON LAT, --bbox WEST SOUTH EAST NORTH, or --roi FILE."
@@ -344,6 +427,7 @@ def next_command(
             cache_dir,
             no_cache,
             offline,
+            json_output,
             min_coverage,
             min_sun_elevation,
             all_passes,
@@ -372,9 +456,10 @@ def predict_command(
     all_passes: AllPasses = False,
     plans: Plans = None,
     fetch_plans: FetchPlans = False,
+    json_output: JsonOutput = False,
 ) -> None:
     """Predict ROI coverage and export a report, footprints or HTML planner."""
-    with _errors("predict"):
+    with _errors("predict", json_output):
         _run_prediction(
             "predict",
             roi,
@@ -387,6 +472,7 @@ def predict_command(
             cache_dir,
             no_cache,
             offline,
+            json_output,
             min_coverage,
             min_sun_elevation,
             all_passes,
@@ -413,9 +499,10 @@ def tracker_command(
     all_passes: AllPasses = False,
     plans: Plans = None,
     fetch_plans: FetchPlans = False,
+    json_output: JsonOutput = False,
 ) -> None:
     """Export a standalone HTML tracker and interactive observation planner."""
-    with _errors("tracker"):
+    with _errors("tracker", json_output):
         _run_prediction(
             "tracker",
             roi,
@@ -428,6 +515,7 @@ def tracker_command(
             cache_dir,
             no_cache,
             offline,
+            json_output,
             min_coverage,
             min_sun_elevation,
             all_passes,
@@ -436,42 +524,77 @@ def tracker_command(
         )
 
 
-@app.command("satellites", cls=TyperCommand)
+@app.command("satellites", cls=_MachineCommand)
 def satellites_command(
     mission: Annotated[str | None, typer.Option(help="Landsat or Sentinel-2.")] = None,
+    json_output: JsonOutput = False,
 ) -> None:
     """List supported satellites and nominal instrument characteristics."""
-    with _errors("satellites"):
+    with _errors("satellites", json_output):
         table = api.list_satellites(mission)
-        typer.echo(
-            table[["satellite", "alias", "norad_id", "mission", "sensor", "swath_km"]].to_string(
-                index=False
+        if json_output:
+            _emit_json(
+                {
+                    "schema_version": SCHEMA_VERSION,
+                    "ok": True,
+                    "command": "satellites",
+                    "satellites": table.to_dict("records"),
+                }
             )
-        )
+        else:
+            typer.echo(
+                table[
+                    ["satellite", "alias", "norad_id", "mission", "sensor", "swath_km"]
+                ].to_string(index=False)
+            )
 
 
 cache_app = typer.Typer(no_args_is_help=True, help="Inspect or clear reusable downloads.")
 app.add_typer(cache_app, name="cache")
 
 
-@cache_app.command("info", cls=TyperCommand)
-def cache_info_command(cache_dir: Cache = None) -> None:
+@cache_app.command("info", cls=_MachineCommand)
+def cache_info_command(cache_dir: Cache = None, json_output: JsonOutput = False) -> None:
     """Show cache location and download sizes without creating files."""
-    with _errors("cache info"):
+    with _errors("cache info", json_output):
         root = cache_root(cache_dir)
         files = cache_files(root)
         size = sum(path.stat().st_size for path in files)
-        typer.echo(f"Cache: {root}\n{len(files)} download file(s), {size / 1024**2:.2f} MiB")
-        typer.echo("Default ESA retention: 30 days / 50 MiB; active plans are retained.")
+        if json_output:
+            _emit_json(
+                {
+                    "schema_version": SCHEMA_VERSION,
+                    "ok": True,
+                    "command": "cache info",
+                    "path": str(root),
+                    "files": len(files),
+                    "bytes": size,
+                }
+            )
+        else:
+            typer.echo(f"Cache: {root}\n{len(files)} download file(s), {size / 1024**2:.2f} MiB")
+            typer.echo("Default ESA retention: 30 days / 50 MiB; active plans are retained.")
 
 
-@cache_app.command("clear", cls=TyperCommand)
-def cache_clear_command(cache_dir: Cache = None) -> None:
+@cache_app.command("clear", cls=_MachineCommand)
+def cache_clear_command(cache_dir: Cache = None, json_output: JsonOutput = False) -> None:
     """Delete recognised downloads; preserve unrelated files and user exports."""
-    with _errors("cache clear"):
+    with _errors("cache clear", json_output):
         root = cache_root(cache_dir)
         count, size = clear_cache(root)
-        typer.echo(f"Cleared {count} download file(s), {size / 1024**2:.2f} MiB from {root}")
+        if json_output:
+            _emit_json(
+                {
+                    "schema_version": SCHEMA_VERSION,
+                    "ok": True,
+                    "command": "cache clear",
+                    "path": str(root),
+                    "files_removed": count,
+                    "bytes_removed": size,
+                }
+            )
+        else:
+            typer.echo(f"Cleared {count} download file(s), {size / 1024**2:.2f} MiB from {root}")
 
 
 if __name__ == "__main__":

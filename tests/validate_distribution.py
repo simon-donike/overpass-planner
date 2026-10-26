@@ -4,6 +4,7 @@ Usage: uv run python tests/validate_distribution.py dist/package.whl
 Dependencies are fetched during installation; the installed API/CLI checks are offline.
 """
 
+import json
 import os
 import subprocess
 import sys
@@ -26,6 +27,33 @@ def main() -> None:
             cwd=root,
             check=True,
         )
+        result = subprocess.run(
+            [
+                str(cli),
+                "next",
+                "--point",
+                "144.96",
+                "-37.82",
+                "--start",
+                "2026-10-26",
+                "--days",
+                "1",
+                "--satellite",
+                "S2B",
+                "--tle-file",
+                str(tests / "fixtures" / "satellites.tle"),
+                "--offline",
+                "--no-cache",
+                "--json",
+            ],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        response = json.loads(result.stdout)
+        assert response["ok"] and response["schema_version"] == "1.0"
+        assert response["count"] == 1 and response["output"] is None
         subprocess.run([str(cli), "--help"], cwd=root, check=True)
         subprocess.run(
             [str(cli), "cache", "info", "--cache-dir", str(root / "unused-cache")],
