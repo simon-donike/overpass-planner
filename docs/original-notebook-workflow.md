@@ -1,4 +1,4 @@
-> Historical documentation from upstream 1.0.0 (October 2026). Mission-status statements and setup commands below describe that release; use the main README for current package instructions.
+> Historical documentation from upstream 1.0.0 (October 2026). Mission-status statements and setup commands below describe that release; use the main README for current package instructions. The directory tree below describes the original release: sample inputs now live in `examples/data/`, images in `docs/assets/`, and the sample CSV in `examples/outputs/`. The legacy `Tools/` files remain available in Git history.
 
 # 🧑‍💻 eo-overpass-predictor
 
@@ -7,8 +7,8 @@
 <table align="right">
   <tr>
     <td align="center">
-      <a href="../Example/IMG/overpass_orbits_example.png" target="_blank">
-        <img src="../Example/IMG/eo_overpass_logo.png" width="120" alt="Landsat and Sentinel-2 orbits and swaths over Australia">
+      <a href="assets/overpass_orbits_example.png" target="_blank">
+        <img src="assets/eo_overpass_logo.png" width="120" alt="Landsat and Sentinel-2 orbits and swaths over Australia">
       </a>
       <br>
       <b>👤 Julian Manning</b>
@@ -24,7 +24,7 @@
   </tr>
 </table>
 
-<img align="right" src="../Example/IMG/spacer.png" width="28" height="380" alt="">
+<img align="right" src="assets/spacer.png" width="28" height="380" alt="">
 
 
 A notebook-driven Python toolkit that tells you **when Landsat 8/9 and Sentinel-2A/B/C will image your Region of Interest**. It propagates current orbital elements with SGP4, intersects each satellite's **instrument swath** with your ROI, and reports every overpass in **UTC and in the ROI's own local time** (DST-aware) as CSV. It also provides an n2yo-style **live tracker**, both inside Jupyter and as a standalone web page, and an optional cross-check against **ESA's published Sentinel-2 acquisition plans**.
@@ -42,7 +42,7 @@ Field campaigns, in-situ validation (water quality sampling, spectroradiometry, 
 
 This repository answers that question geometrically and, for Sentinel-2, against the mission plan.
 
-![Landsat and Sentinel-2 orbits and swaths over Australia](../Example/IMG/overpass_orbits_example.png)
+![Landsat and Sentinel-2 orbits and swaths over Australia](assets/overpass_orbits_example.png)
 
 *Rendered with this repository's orbit engine for 26 Oct 2026, 00:27 UTC, as Sentinel-2B images the Port Phillip Bay ROI (red square). Strips are instrument swaths accumulated over the previous five hours of daylit descending passes (Landsat blue, Sentinel-2 orange); the two rings are the shared orbital planes of each mission. Landsat 8 passes just west of the ROI at the same moment: close, but its swath does not cover it. Swaths are geometric — neither mission acquires open ocean by default.*
 
@@ -68,13 +68,13 @@ As with the companion [CDSE download pipelines](#-related), this is a transparen
 
 Predicted imaging overpasses of a Port Phillip Bay ROI (Victoria, Australia), 24 Oct – 8 Nov 2026, from `p01_overpass_prediction.ipynb`. Marker size scales with ROI coverage; labels are local time (AEDT). Sentinel-2B and 2C fall 5 days apart and each repeats every 10 days; Landsat 8 and 9 are 8 days apart.
 
-![Overpass timeline for the example ROI](../Example/IMG/overpass_timeline_example.png)
+![Overpass timeline for the example ROI](assets/overpass_timeline_example.png)
 
 The standalone live tracker (`OUTPUT/live_tracker.html`) in world view: current positions, last 45 min (dashed) and next 90 min (solid) of ground track, live swaths, and the night side.
 
-![Standalone live tracker, world view](../Example/IMG/live_tracker_example.png)
+![Standalone live tracker, world view](assets/live_tracker_example.png)
 
-A sample report is in [`../Example/CSV/overpasses_Port_Phillip_Bay_example.csv`](../Example/CSV/overpasses_Port_Phillip_Bay_example.csv).
+A sample report is in [`../examples/outputs/overpasses_Port_Phillip_Bay_example.csv`](../examples/outputs/overpasses_Port_Phillip_Bay_example.csv).
 
 > 📌 **Interactive maps on GitHub**: Folium and ipyleaflet outputs are HTML/JavaScript, which GitHub's notebook preview does not execute. They are fully interactive when the notebooks run locally, and the footprint map can be exported with `save_path`.
 
@@ -125,7 +125,7 @@ eo-overpass-predictor/
 │   ├── live_tracker_template.html     # Standalone tracker page template (satellite.js, canvas)
 │   └── world_land_50m.json            # Natural Earth 1:50m land, compacted for the standalone tracker
 │
-└── ../Example/
+└── Example/
     ├── CSV/                           # Sample overpass report
     └── IMG/                           # Images used in this README
 ```

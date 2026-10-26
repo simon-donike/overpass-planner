@@ -1,7 +1,6 @@
 """Run the actual example notebooks with deterministic data and no HTTP access."""
 
 import json
-import shutil
 from pathlib import Path
 
 import nbformat
@@ -14,14 +13,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.mark.notebooks
 @pytest.mark.parametrize(
-    "name", ["p00_overpass_env_setup", "p01_overpass_prediction", "p02_overpass_live_tracker"]
+    ("name", "working_directory"),
+    [
+        ("p00_overpass_env_setup", "notebooks"),
+        ("p01_overpass_prediction", "."),
+        ("p02_overpass_live_tracker", "notebooks"),
+    ],
 )
-def test_example_notebook(name, tmp_path, monkeypatch):
+def test_example_notebook(name, working_directory, tmp_path, monkeypatch):
     pytest.importorskip("ipyleaflet")
     pytest.importorskip("folium")
     pytest.importorskip("matplotlib")
     workspace = tmp_path / "workspace"
-    shutil.copytree(ROOT / "DATA" / "SHP", workspace / "DATA" / "SHP")
     for key in ["IPYTHONDIR", "JUPYTER_RUNTIME_DIR", "MPLCONFIGDIR"]:
         directory = tmp_path / key.lower()
         directory.mkdir()
@@ -59,7 +62,7 @@ eo.load_s2_acquisition_plans = lambda *args, **kwargs: _load_plans(list(_fixture
         notebook,
         timeout=180,
         kernel_name="python3",
-        resources={"metadata": {"path": str(ROOT / "notebooks")}},
+        resources={"metadata": {"path": str(ROOT / working_directory)}},
     )
     executed = client.execute()
     assert all(

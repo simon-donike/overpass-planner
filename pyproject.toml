@@ -55,7 +55,7 @@ dev = [
 packages = ["src/eo_overpass_predictor"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "examples", "notebooks", "docs", "Tools", "DATA/SHP", "Example", "README.md", "AGENTS.md", "LICENSE", "CITATION.cff", "pyproject.toml", "uv.lock", ".github", ".pre-commit-config.yaml"]
+include = ["src", "tests", "examples", "notebooks", "docs", "README.md", "AGENTS.md", "LICENSE", "CITATION.cff", "pyproject.toml", "uv.lock", ".github", ".pre-commit-config.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -64,7 +64,6 @@ markers = ["notebooks: headless execution of example notebooks", "visualization:
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = ["Tools/overpass_env_builder.py"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "UP"]

@@ -6,7 +6,7 @@ Predict when the instrument swath of **Landsat 8/9 or Sentinel-2A/B/C** intersec
 
 The scientific implementation is by **Julian Manning**. This development version packages that implementation for Python, the command line, and notebooks. It preserves the original orbital methodology; packaging regression tests are separate from independent validation against real acquisitions.
 
-![Example overpass timeline](Example/IMG/overpass_timeline_example.png)
+![Example overpass timeline](docs/assets/overpass_timeline_example.png)
 
 *Historical example from the original notebook workflow, not output from the frozen test fixtures.*
 
@@ -146,13 +146,13 @@ A fully offline command using the bundled *historical regression* inputs:
 
 ```bash
 uv run eo-overpass predict \
-  --roi DATA/SHP/Port_Phillip_Bay_Extent_EPSG_32755.shp \
+  --roi examples/data/Port_Phillip_Bay_Extent_EPSG_32755.shp \
   --start 2026-10-26 --end 2026-10-27 --satellite S2B \
   --tle-file tests/fixtures/satellites.tle --offline \
   --cache-dir DATA --output OUTPUT/offline-example.csv
 ```
 
-The fixed inputs demonstrate reproducibility; do not use them as current orbital elements. The demonstration notebooks intentionally use their configured workspace's `DATA/TLE`, `DATA/KML` and `OUTPUT` directories; these explicit workspace paths are outside automatic cache retention.
+The fixed inputs demonstrate reproducibility; do not use them as current orbital elements. Sample inputs are versioned in `examples/data/`, historical sample reports in `examples/outputs/`, and documentation images in `docs/assets/`. Local `DATA/` caches and `OUTPUT/` reports are created as needed and ignored by Git. The demonstration notebooks intentionally use their configured workspace's `DATA/TLE`, `DATA/KML` and `OUTPUT` directories; these explicit workspace paths are outside automatic cache retention.
 
 ## Supported instruments and scientific assumptions
 
@@ -207,7 +207,7 @@ uv sync --extra notebooks
 uv run --extra notebooks jupyter lab
 ```
 
-Run [setup diagnostics](notebooks/p00_overpass_env_setup.ipynb), [prediction/reporting](notebooks/p01_overpass_prediction.ipynb), then [live tracking](notebooks/p02_overpass_live_tracker.ipynb). All import the installed package. Set `EO_OVERPASS_WORKSPACE` to a directory containing `DATA/` to override repository discovery; notebook exports go to its `OUTPUT/` directory.
+Run [setup diagnostics](notebooks/p00_overpass_env_setup.ipynb), [prediction/reporting](notebooks/p01_overpass_prediction.ipynb), then [live tracking](notebooks/p02_overpass_live_tracker.ipynb). All import the installed package. The notebooks discover the repository from the root or `notebooks/` directory and load the bundled ROI from `examples/data/`. Set `EO_OVERPASS_WORKSPACE` to choose another directory for local caches and reports; it does not need to exist yet. Notebook exports go to its `OUTPUT/` directory.
 
 For maps and timelines without Jupyter, install only the `visualization` extra. The widget tracker requires a running notebook event loop and supports `tracker.stop()` / `tracker.start()`. The standalone HTML tracker embeds TLEs, predictions and coastlines, requires no Python to view, and loads satellite.js and font styles from public CDNs. Folium/ipyleaflet basemaps require network access. Embedded TLEs and countdown windows age; re-export to refresh them.
 
