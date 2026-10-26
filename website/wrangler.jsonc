@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "overpass",
+  "compatibility_date": "2026-10-26",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "overpass.hyperalislabs.com", "custom_domain": true }
+  ],
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "none"
+  }
+}
