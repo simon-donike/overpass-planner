@@ -11,6 +11,7 @@ requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{name = "Julian Manning", email = "julian.manning@outlook.com"}]
+maintainers = [{name = "Simon Donike"}]
 keywords = ["Landsat", "Sentinel-1", "Sentinel-2", "SGP4", "overpass", "remote sensing"]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -39,10 +40,10 @@ notebooks = [
 eo-overpass = "eo_overpass_predictor.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/julianManning/eo-overpass-predictor"
-Repository = "https://github.com/julianManning/eo-overpass-predictor"
-Issues = "https://github.com/julianManning/eo-overpass-predictor/issues"
-Citation = "https://doi.org/10.5281/zenodo.23629976"
+Homepage = "https://github.com/simon-donike/overpass-planner"
+Repository = "https://github.com/simon-donike/overpass-planner"
+Issues = "https://github.com/simon-donike/overpass-planner/issues"
+"Original software citation" = "https://doi.org/10.5281/zenodo.23629976"
 
 [dependency-groups]
 dev = [

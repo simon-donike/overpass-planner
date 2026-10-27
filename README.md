@@ -90,8 +90,8 @@ Requires **Python 3.11+** and [uv](https://docs.astral.sh/uv/). Install this for
 from a checkout:
 
 ```bash
-git clone https://github.com/simon-donike/eo-overpass-predictor.git
-cd eo-overpass-predictor
+git clone https://github.com/simon-donike/overpass-planner.git
+cd overpass-planner
 uv sync
 ```
 
