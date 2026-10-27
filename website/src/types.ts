@@ -44,6 +44,16 @@ export interface SatellitePosition {
   freshness: 'fresh' | 'aged' | 'stale'; source: string;
 }
 export interface PositionsResult { when_utc: string; positions: SatellitePosition[] }
+export interface SatelliteTrack {
+  satellite: string; epoch_utc: string; source: string;
+  // Geodetic longitude, latitude, altitude (km), ground speed (km/s).
+  samples: [number, number, number, number][];
+}
+export interface TracksResult {
+  anchor_utc: string; start_utc: string; valid_until_utc: string; step_s: number;
+  tracks: SatelliteTrack[];
+}
 export type WorkerEvent = Progress | {type: 'ready'; catalogue: Record<string, SatelliteInfo>; version: string; id: number}
   | {type: 'result'; result: Result; id: number} | {type: 'positions'; result: PositionsResult; id: number}
+  | {type: 'tracks'; result: TracksResult; id: number}
   | {type: 'error'; message: string; id: number; fatal?: boolean};

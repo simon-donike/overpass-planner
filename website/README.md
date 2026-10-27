@@ -122,19 +122,37 @@ if WebGL fails. Arrow keys pan and +/− zoom; there is no automatic rotation.
 
 **Live satellites** is optional and uses the selected satellites and supplied TLEs,
 or retrieves elements directly in the browser with the existing two-hour cache.
-The website adapter calls the package's public `satellite_positions` API at the
-current UTC time every five seconds. These are SGP4 estimates, not telemetry.
-Markers show ground positions, with altitude, direction, element epoch, source and
-freshness available in the list. Choose a satellite in the list to center either
-view on it. The prediction start date and pass filters do not change live time.
+The website adapter reuses vectorized SGP4 propagation from the bundled package.
+It computes a thirty-minute buffer once per ten-minute validity window: ten
+minutes behind the anchor and twenty minutes ahead, sampled every ten seconds.
+This keeps **past ten minutes dotted** and **next ten minutes solid** available
+throughout the window. All selected satellites are processed in one worker job.
+The bundled package and prediction sampling remain unchanged; batch samples are
+checked against its public `satellite_positions` API.
+
+Markers interpolate geodetic unit normals with a cubic curve between these
+samples, handling polar motion and the date line. Lightweight marker animation
+runs four times per second; track clipping and labels update once per second.
+Neither operation calls Python or propagates an orbit. An expired buffer is
+replaced, never extrapolated; changing satellites or TLEs invalidates it. Cached
+tracks survive pausing, tab visibility changes and toggling live view, provided
+the window is still valid. Freshness continues to use each actual element epoch.
+Positions are SGP4 estimates, not telemetry or acquisition evidence. Choose a
+satellite in the list to center either view on it. The prediction start date and
+pass filters do not change live time.
 
 Live tracking shares one Pyodide interpreter with predictions and pauses while a
-prediction runs or the tab is hidden. Paused markers are cleared; cancelled or
-superseded updates cannot reappear. Switching it off stops periodic work. The
-adapter caches parsed TLEs, never propagated positions; orbital inputs are checked
-every ten minutes using the existing provider cache/backoff rules. Manual or old
-elements retain their actual epochs and freshness warnings. No external services
-are contacted by the scientific calculation itself.
+prediction runs or the tab is hidden. Paused markers and paths are cleared;
+cancelled or superseded batches cannot reappear. Switching live view off stops
+animation. Direct orbital inputs retain their existing two-hour cache and provider
+backoff rules, with a cache check when a new ten-minute batch is needed.
+
+**Day / night** is enabled by default in both views and works before Python loads.
+It shades the current geometric night hemisphere using the same low-order solar
+model as the package, updated once per minute and after a tab becomes visible.
+It is independent of prediction dates and does not modify illumination filters.
+The display does not model atmospheric twilight or refraction. Turn the overlay
+off with its checkbox if desired.
 
 ## Direct browser orbital data
 
@@ -262,7 +280,11 @@ settings changes, keyboard operation and narrow layouts.
 Real WebGL tests cover lazy loading, view switching, live markers, mobile/keyboard
 controls, graphics failure and recovery. Live-position checks compare all seven
 satellites against direct native `satellite_positions` at explicit frozen times
-(1e-7 absolute tolerance), plus stale-element warnings, selection changes,
+(1e-7 absolute tolerance for batch samples); interpolation at intermediate times
+is checked within 25 m on the ground and 10 m in altitude. These are parity
+tolerances, not observational accuracy guarantees. Tests also cover ten-minute
+cache rollover/reuse, dotted/solid trails, date-line clipping, seasonal solar
+geometry, current-night toggling, stale-element warnings, selection changes,
 hidden-tab pausing, shared-runtime cancellation and rejected late responses.
 
 Also run the repository's standard Python and distribution checks from `AGENTS.md`.

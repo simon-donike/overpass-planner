@@ -48,14 +48,17 @@ async function handle({type, id, base, request}: Request) {
     initialized ??= initialize(base, id);
     await initialized;
     if (request && pyodide) {
+      // Timestamp a live batch after the first, potentially slow runtime load.
+      if (type === 'tracks' && 'when_utc' in request && request.when_utc === 'now') request = {...request, when_utc: new Date().toISOString()};
       pyodide.globals.set('request_json', JSON.stringify(request));
       pyodide.globals.set('notify_progress', (stage: string, label: string, completed: number, total: number, elapsed: number) => {
         self.postMessage({type: 'progress', id, stage, label, completed, total, elapsed});
       });
-      const result = await pyodide.runPythonAsync(type === 'positions'
-        ? 'browser_adapter.positions_json(request_json)'
-        : 'browser_adapter.run_request_json(request_json, notify_progress)');
-      self.postMessage({type: type === 'positions' ? 'positions' : 'result', id, result: JSON.parse(String(result))});
+      const code = type === 'positions' ? 'browser_adapter.positions_json(request_json)'
+        : type === 'tracks' ? 'browser_adapter.tracks_json(request_json)'
+        : 'browser_adapter.run_request_json(request_json, notify_progress)';
+      const result = await pyodide.runPythonAsync(code);
+      self.postMessage({type: type === 'positions' || type === 'tracks' ? type : 'result', id, result: JSON.parse(String(result))});
     }
   } catch (error) {
     console.error(error);

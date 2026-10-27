@@ -28,6 +28,7 @@ test('unchanged package imports and predicts inside real Pyodide', async ({page}
       }));
     }
     const tracked = [];
+    const batches = [];
     for (let i = 0; i < positions.length; i++) {
       tracked.push(await new Promise<any>((resolve, reject) => {
         worker.onmessage = event => {
@@ -36,12 +37,28 @@ test('unchanged package imports and predicts inside real Pyodide', async ({page}
         };
         worker.postMessage({type: 'positions', base: new URL('./', location.href).href, id: 100 + i, request: positions[i].request});
       }));
+      batches.push(await new Promise<any>((resolve, reject) => {
+        worker.onmessage = event => {
+          if (event.data.type === 'error') reject(new Error(event.data.message));
+          if (event.data.type === 'tracks') resolve(event.data.result);
+        };
+        worker.postMessage({type: 'tracks', base: new URL('./', location.href).href, id: 200 + i, request: positions[i].request});
+      }));
     }
     worker.terminate();
-    return {results, tracked};
+    return {results, tracked, batches};
   }, {cases: references, positions});
-  const {results, tracked} = calculated;
+  const {results, tracked, batches} = calculated;
   for (let i = 0; i < positions.length; i++) {
+    expect(batches[i].anchor_utc).toBe(positions[i].batch.anchor_utc);
+    expect(batches[i].valid_until_utc).toBe(positions[i].batch.valid_until_utc);
+    for (const [index, track] of batches[i].tracks.entries()) {
+      const native = positions[i].batch.tracks[index];
+      expect(track.samples).toHaveLength(native.samples.length);
+      for (const [sampleIndex, sample] of track.samples.entries()) for (let axis = 0; axis < 4; axis++) {
+        expect(Math.abs(sample[axis] - native.samples[sampleIndex][axis])).toBeLessThan(1e-7);
+      }
+    }
     for (const [j, row] of tracked[i].positions.entries()) {
       const expected = positions[i].expected[j];
       expect(row.satellite).toBe(expected.satellite);
@@ -99,7 +116,7 @@ test('the actual planner form runs Python and renders downloadable map results',
   await page.getByRole('button', {name: 'Select all', exact: true}).click();
   await page.getByLabel('Live satellites', {exact: true}).check();
   await expect(page.locator('#live-list button')).toHaveCount(7, {timeout: 120_000});
-  await expect(page.locator('#live-status')).toContainText('Updated');
+  await expect(page.locator('#live-status')).toContainText('precomputed until');
   await page.getByRole('button', {name: '3D globe', exact: true}).click();
   await expect(page.locator('#globe-status')).toContainText('Drag to rotate');
   await expect(page.locator('#globe .live-marker')).toHaveCount(7);

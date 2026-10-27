@@ -7,6 +7,7 @@ import { startTimeControl } from './start-time';
 import { showMobileNotice } from './mobile-notice';
 import { BrowserRuntime } from './runtime';
 import { liveSatellites } from './live';
+import { dayNight } from './day-night';
 import type { PredictionRequest, Progress, Result, SatelliteInfo } from './types';
 
 const base = new URL(import.meta.env.BASE_URL, location.href).href;
@@ -43,6 +44,7 @@ const map = createMap((input, label) => {
   roi = input; $('roi-summary').textContent = label;
   $('map-hint').textContent = input ? 'Region selected · ready to calculate' : 'Draw or enter a region to begin'; changed();
 });
+dayNight(map);
 function attempt(action: () => void) { try { clearError(); action(); } catch (error) { fail((error as Error).message); } }
 for (const shape of ['point', 'rectangle', 'polygon']) $(`draw-${shape}`).onclick = () => {
   map.draw(shape); $('map-hint').textContent = 'Draw on the map · Escape cancels';

@@ -25,6 +25,7 @@ from eo_overpass_predictor import (
     resolve_roi_timezone,
     satellite_positions,
 )
+from eo_overpass_predictor.core.orbits import GEOD, _build_satellite, _propagate
 from eo_overpass_predictor.presentation import json_value, prediction_document
 
 
@@ -82,6 +83,51 @@ def positions_json(request_json: str) -> str:
             ),
         )
     return json.dumps(json_value({"when_utc": when, "positions": rows}), allow_nan=False)
+
+
+def tracks_json(request_json: str) -> str:
+    """One vectorized batch for ten minutes of browser animation.
+
+    Reuse the bundled engine's propagation and geodesic helpers, without changing
+    package files or prediction sampling. Compare these samples against the public
+    satellite_positions API in both native Python and real Pyodide tests.
+    A thirty-minute buffer maintains ten minutes behind/ahead throughout the
+    ten-minute validity window. Nothing extrapolates beyond that window.
+    """
+    request = json.loads(request_json)
+    initial = json.loads(positions_json(request_json))  # Validate and retain epochs/sources.
+    when = pd.Timestamp(request["when_utc"]).tz_convert("UTC")
+    step = 10
+    offsets = np.arange(-600, 1200 + step, step, dtype=float)
+    tracks = []
+    for position in initial["positions"]:
+        name = position["satellite"]
+        satellite = _build_satellite(name, _tracking_tles[name])
+        lat, lon, alt = _propagate(satellite, when, np.concatenate([offsets, offsets + 1]))
+        count = len(offsets)
+        _, _, distance = GEOD.inv(lon[:count], lat[:count], lon[count:], lat[count:])
+        tracks.append(
+            {
+                "satellite": name,
+                "epoch_utc": position["epoch_utc"],
+                "source": position["source"],
+                "samples": np.column_stack(
+                    [lon[:count], lat[:count], alt[:count], distance / 1000]
+                ).tolist(),
+            }
+        )
+    return json.dumps(
+        json_value(
+            {
+                "anchor_utc": when,
+                "start_utc": when - pd.Timedelta(minutes=10),
+                "valid_until_utc": when + pd.Timedelta(minutes=10),
+                "step_s": step,
+                "tracks": tracks,
+            }
+        ),
+        allow_nan=False,
+    )
 
 
 @contextmanager

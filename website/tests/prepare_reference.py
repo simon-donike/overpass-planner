@@ -5,7 +5,9 @@ import json
 import tempfile
 from pathlib import Path
 
-from eo_overpass_predictor import fetch_tles, satellite_positions
+import pandas as pd
+
+from eo_overpass_predictor import fetch_tles, satellite_positions, subsolar_point
 from eo_overpass_predictor.presentation import json_value
 
 SITE = Path(__file__).resolve().parents[1]
@@ -98,7 +100,39 @@ with tempfile.TemporaryDirectory() as directory:
             {
                 "request": request,
                 "expected": json_value(satellite_positions(tles, when_utc=when).to_dict("records")),
+                "batch": json.loads(adapter.tracks_json(json.dumps(request))),
+                "interpolated": [
+                    {
+                        "when_utc": (
+                            pd.Timestamp(when) + pd.Timedelta(milliseconds=offset)
+                        ).isoformat(),
+                        "positions": json_value(
+                            satellite_positions(
+                                tles,
+                                when_utc=pd.Timestamp(when) + pd.Timedelta(milliseconds=offset),
+                            ).to_dict("records")
+                        ),
+                    }
+                    for offset in [0, 2500, 123456, 300001, 599999]
+                ],
             }
         )
 (output / "positions.json").write_text(json.dumps(position_references, indent=2) + "\n")
+(output / "solar.json").write_text(
+    json.dumps(
+        [
+            {"when_utc": when, "expected": subsolar_point(when)}
+            for when in [
+                "2026-03-20T14:46:00Z",
+                "2026-06-21T08:24:00Z",
+                "2026-09-23T00:06:00Z",
+                "2026-12-21T20:50:00Z",
+                "2026-10-27T00:00:00Z",
+                "2026-10-27T12:00:00Z",
+            ]
+        ],
+        indent=2,
+    )
+    + "\n"
+)
 print("Generated ephemeral expectations from native Python; existing baselines are unchanged.")
