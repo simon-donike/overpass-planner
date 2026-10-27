@@ -1,4 +1,4 @@
-import type { PositionsRequest, PositionsResult, PredictionRequest, Progress, Result, WorkerEvent } from './types';
+import type { PositionsRequest, PositionsResult, PredictionRequest, Progress, Result, TracksResult, WorkerEvent } from './types';
 
 /** One Python runtime, shared by predictions and the optional live view. */
 export class BrowserRuntime {
@@ -12,6 +12,9 @@ export class BrowserRuntime {
   }
   positions(request: PositionsRequest, progress: (event: Progress) => void): Promise<PositionsResult> {
     return this.send('positions', request, progress);
+  }
+  tracks(request: PositionsRequest, progress: (event: Progress) => void): Promise<TracksResult> {
+    return this.send('tracks', request, progress);
   }
   terminate() {
     this.worker?.terminate(); this.worker = undefined;

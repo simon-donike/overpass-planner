@@ -35,13 +35,18 @@ async function mockPython(page: Page) {
       terminate() {} // Deliberately send late updates after termination.
       postMessage(job: any) {
         state.__jobs.push(job);
-        const result = job.type === 'predict' ? fixture : {when_utc: job.request.when_utc, positions: job.request.satellites.map((satellite: string, index: number) => ({
-          satellite, lat: -37.82 + index, lon: 144.96 + index, alt_km: 786, ground_speed_kms: 6.7, direction: 'Ascending',
-          epoch_utc: '2026-10-01T00:00:00Z', tle_age_days: 25, freshness: 'stale', source: 'Frozen historical test elements',
-        }))};
-        const failure = state.__liveFailure && job.type === 'positions';
+        const now = Date.now();
+        const result = job.type === 'predict' ? fixture : {
+          anchor_utc: new Date(now).toISOString(), start_utc: new Date(now - 600_000).toISOString(),
+          valid_until_utc: new Date(now + 600_000).toISOString(), step_s: 10,
+          tracks: job.request.satellites.map((satellite: string, index: number) => ({
+            satellite, epoch_utc: '2026-10-01T00:00:00Z', source: 'Frozen historical test elements',
+            samples: Array.from({length: 181}, (_, sample) => [144.96 + index + (sample - 60) * 0.01, -37.82 + index + (sample - 60) * 0.0005, 786, 6.7]),
+          })),
+        };
+        const failure = state.__liveFailure && job.type === 'tracks';
         setTimeout(() => this.onmessage?.({data: failure ? {type: 'error', id: job.id, message: 'Test dependency failure', fatal: true}
-          : {type: job.type === 'predict' ? 'result' : 'positions', id: job.id, result}}), job.type === 'predict' ? state.__predictionDelay : state.__liveDelay);
+          : {type: job.type === 'predict' ? 'result' : 'tracks', id: job.id, result}}), job.type === 'predict' ? state.__predictionDelay : state.__liveDelay);
       }
     };
   }, {fixture});
@@ -109,8 +114,11 @@ test('live tracking is opt-in, shares Python, pauses for calculations, and rejec
   await page.getByRole('button', {name: 'Cancel calculation'}).click();
   await expect(page.locator('#status-title')).toHaveText('Calculation cancelled');
   await expect(page.locator('#live-list button')).toHaveCount(7);
-  expect(await page.evaluate(() => (window as any).__pythonWorkers)).toBe(2);
+  // Cancellation terminates Python, but a still-valid track needs no new worker.
+  expect(await page.evaluate(() => (window as any).__pythonWorkers)).toBe(1);
   await page.getByLabel('Live satellites', {exact: true}).uncheck();
+  await page.getByRole('button', {name: 'Clear selection', exact: true}).click();
+  await page.getByLabel('S2B', {exact: true}).check();
   await page.evaluate(() => { (window as any).__liveDelay = 700; });
   await page.getByLabel('Live satellites', {exact: true}).check();
   await page.getByLabel('Live satellites', {exact: true}).uncheck();
@@ -207,4 +215,29 @@ test('Earth hides far-side satellite markers and the list brings them into view'
   await page.getByRole('button', {name: 'Locate SENTINEL-2B', exact: true}).click();
   await expect(satellite).toBeVisible();
   await expect(satellite).not.toHaveClass(/maplibregl-marker-covered/);
+});
+
+test('one batch animates for ten minutes, then refreshes once; trails and night shading stay visible', async ({page}) => {
+  await page.clock.install({time: new Date('2026-10-27T00:00:00Z')});
+  await mockPython(page); await page.goto('./');
+  await page.getByLabel('Live satellites', {exact: true}).check();
+  await expect(page.locator('#live-list button')).toHaveCount(7);
+  await expect(page.locator('#map .track-past')).toHaveCount(7);
+  await expect(page.locator('#map .track-future')).toHaveCount(7);
+  await expect(page.locator('#map .night-overlay')).toHaveCount(1);
+  const before = await page.getByRole('button', {name: 'Locate SENTINEL-2B', exact: true}).getAttribute('title');
+  const elapsed = await page.evaluate(() => Date.parse(document.querySelector('#live-status')!.textContent!.split('precomputed until ')[1].replace(' ', 'T')) - Date.now());
+  await page.clock.fastForward(elapsed - 1000);
+  await expect.poll(() => page.evaluate(() => (window as any).__jobs.filter((job: any) => job.type === 'tracks').length)).toBe(1);
+  await expect(page.getByRole('button', {name: 'Locate SENTINEL-2B', exact: true})).not.toHaveAttribute('title', before!);
+  await page.clock.fastForward(1500); await page.clock.fastForward(100);
+  await expect.poll(() => page.evaluate(() => (window as any).__jobs.filter((job: any) => job.type === 'tracks').length)).toBe(2);
+  await expect(page.locator('#live-list button')).toHaveCount(7);
+  await page.getByLabel('Day / night', {exact: true}).uncheck();
+  await expect(page.locator('#map .night-overlay')).toHaveCount(0);
+  await page.getByLabel('Day / night', {exact: true}).check();
+  await expect(page.locator('#map .night-overlay')).toHaveCount(1);
+  await page.getByLabel('Live satellites', {exact: true}).uncheck();
+  await expect(page.locator('#map .satellite-track')).toHaveCount(0);
+  await expect(page.locator('#map .night-overlay')).toHaveCount(1);
 });

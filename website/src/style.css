@@ -123,6 +123,11 @@ footer span { float: right; }
 .map-toolbar .segmented { width: auto; margin: 0; }
 .map-toolbar button { font-size: 11px; white-space: nowrap; }
 .live-toggle { margin: 0 0 0 auto; white-space: nowrap; }
+.night-toggle { margin: 0 0 0 auto; white-space: nowrap; }
+.night-toggle + .live-toggle { margin-left: 0; }
+.night-swatch { background: #10264d66; }
+.track-key { display: inline-block; width: 22px; border-top: 2px solid #2563b9; vertical-align: middle; }
+.track-past-key { border-top-style: dotted; }
 .map-view-hint { margin: 0; padding: 8px 14px; font-size: 11px; color: #365e94; background: #e7effb; }
 #globe { background: #10264d; }
 .live-marker { display: block; width: 18px; height: 18px; padding: 0; border: 2px solid white; border-radius: 50%; background: var(--satellite-colour, #2563b9); box-shadow: 0 0 0 2px #10264d88; cursor: pointer; }

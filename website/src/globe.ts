@@ -28,7 +28,10 @@ export async function createGlobe(select: (index: number) => void, failure: (mes
     map.once('webglcontextlost', () => reject(new Error('The graphics context was lost. Retry the globe when ready.')));
   }).catch(error => { map.remove(); throw error; });
   map.on('webglcontextlost', () => failure('The graphics context was lost. Retry the globe when ready.'));
-  for (const id of ['roi', 'passes']) map.addSource(id, {type: 'geojson', data: empty()});
+  for (const id of ['roi', 'passes', 'tracks', 'night']) map.addSource(id, {type: 'geojson', data: empty()});
+  map.addLayer({id: 'night', source: 'night', type: 'fill', paint: {'fill-color': '#10264d', 'fill-opacity': 0.32}});
+  map.addLayer({id: 'track-past', source: 'tracks', type: 'line', filter: ['==', ['get', 'part'], 'past'], layout: {'line-cap': 'round'}, paint: {'line-color': ['get', 'colour'], 'line-width': 2, 'line-dasharray': [1, 3], 'line-opacity': 0.85}});
+  map.addLayer({id: 'track-future', source: 'tracks', type: 'line', filter: ['==', ['get', 'part'], 'future'], paint: {'line-color': ['get', 'colour'], 'line-width': 2, 'line-opacity': 0.85}});
   map.addLayer({id: 'passes-fill', source: 'passes', type: 'fill', paint: {'fill-color': ['get', 'colour'], 'fill-opacity': ['case', ['get', 'selected'], 0.35, 0.1]}});
   map.addLayer({id: 'passes-line', source: 'passes', type: 'line', paint: {'line-color': ['get', 'colour'], 'line-width': ['case', ['get', 'selected'], 4, 1.5]}});
   map.addLayer({id: 'roi-fill', source: 'roi', type: 'fill', paint: {'fill-color': '#2563b9', 'fill-opacity': 0.15}});
@@ -48,7 +51,9 @@ export async function createGlobe(select: (index: number) => void, failure: (mes
       void (map.getSource('roi') as GeoJSONSource).setData(roi);
       void (map.getSource('passes') as GeoJSONSource).setData(passes);
     },
-    positions(rows: SatellitePosition[], colours: Record<string, string>) {
+    tracks(data: FeatureCollection) { void (map.getSource('tracks') as GeoJSONSource).setData(data); },
+    night(data: FeatureCollection) { void (map.getSource('night') as GeoJSONSource).setData(data); },
+    positions(rows: SatellitePosition[], colours: Record<string, string>, details = true) {
       const names = new Set(rows.map(p => p.satellite));
       for (const [name, marker] of markers) if (!names.has(name)) { marker.remove(); markers.delete(name); }
       for (const row of rows) {
@@ -61,8 +66,10 @@ export async function createGlobe(select: (index: number) => void, failure: (mes
           markers.set(row.satellite, marker);
         }
         marker.setLngLat([row.lon, row.lat]);
-        marker.getElement().setAttribute('aria-label', description); marker.getElement().title = description;
-        marker.getPopup()?.setText(description);
+        if (details) {
+          marker.getElement().setAttribute('aria-label', description); marker.getElement().title = description;
+          marker.getPopup()?.setText(description);
+        }
       }
     },
     destroy() { map.remove(); },
