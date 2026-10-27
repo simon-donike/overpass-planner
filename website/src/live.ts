@@ -1,9 +1,10 @@
 import { fetchOrbitalInputs } from './orbital-data';
+import { trackLines, trackPositions, validTracks } from './tracks';
 import type { createMap } from './map';
 import type { BrowserRuntime } from './runtime';
-import type { PositionsRequest, SatelliteInfo } from './types';
+import type { PositionsRequest, SatelliteInfo, TracksResult } from './types';
 
-/** Opt-in tracking, serialized with predictions through the same Python worker. */
+/** Precompute once per ten-minute window; animation never calls Python. */
 export function liveSatellites(runtime: BrowserRuntime, map: ReturnType<typeof createMap>, inputs: () => {satellites: string[]; catalogue: Record<string, SatelliteInfo>; tle: string}) {
   const toggle = document.getElementById('live-satellites') as HTMLInputElement;
   const panel = document.getElementById('live-panel')!;
@@ -14,13 +15,51 @@ export function liveSatellites(runtime: BrowserRuntime, map: ReturnType<typeof c
   let generation = 0, paused = false, inFlight = false, timer: ReturnType<typeof setTimeout> | undefined;
   let retrieval: AbortController | undefined;
   let orbital: Omit<PositionsRequest, 'when_utc'> | undefined;
-  let orbitalWarning = '', fetchedAt = 0;
+  let batch: TracksResult | undefined;
+  let orbitalWarning = '', fetchedAt = 0, detailsAt = 0;
   const active = () => toggle.checked && !paused && !document.hidden;
-  function invalidate() {
+  function clear() {
     generation++; clearTimeout(timer); retrieval?.abort(); retrieval = undefined;
-    map.positions([], {}); list.replaceChildren(); retry.hidden = true;
+    map.positions([], {}); map.tracks({type: 'FeatureCollection', features: []});
+    list.replaceChildren(); retry.hidden = true; warning.hidden = true; detailsAt = 0;
   }
-  async function tick(id: number) {
+  function failed(error: unknown) {
+    map.positions([], {}); map.tracks({type: 'FeatureCollection', features: []}); list.replaceChildren();
+    status.textContent = `Live positions unavailable: ${(error as Error).message}`;
+    retry.hidden = false;
+  }
+  function draw(id: number) {
+    if (!active() || id !== generation) return;
+    if (!batch || !validTracks(batch, Date.now())) { resume(); return; }
+    try {
+      const time = Date.now(), catalogue = inputs().catalogue;
+      const rows = trackPositions(batch, time), details = time - detailsAt >= 1000;
+      // Four small marker updates per second; paths, labels and metadata once per
+      // second. These are interpolation/display operations, never propagation.
+      map.positions(rows, catalogue, details);
+      if (details) {
+        detailsAt = time;
+        map.tracks(trackLines(batch, time, catalogue));
+        status.textContent = `Live ${new Date(time).toISOString().replace('T', ' ')} · precomputed until ${batch.valid_until_utc.replace('T', ' ')}`;
+        const old = rows.some(row => row.freshness !== 'fresh');
+        warning.textContent = [orbitalWarning, old ? 'Some elements are aged or stale. Refresh or supply newer TLEs; these labels are reminders, not accuracy probabilities.' : ''].filter(Boolean).join(' ');
+        warning.hidden = !warning.textContent;
+        for (const position of rows) {
+          let button = list.querySelector<HTMLButtonElement>(`[data-satellite="${position.satellite}"]`);
+          if (!button) { button = document.createElement('button'); button.type = 'button'; button.dataset.satellite = position.satellite; list.append(button); }
+          button.textContent = `${position.satellite} · ${position.alt_km.toFixed(0)} km · ${position.direction} · ${position.freshness}`;
+          button.setAttribute('aria-label', `Locate ${position.satellite}`);
+          button.title = `${position.lat.toFixed(3)}°, ${position.lon.toFixed(3)}° · ground speed ${position.ground_speed_kms.toFixed(2)} km/s\nTLE epoch ${position.epoch_utc} · ${Math.abs(position.tle_age_days).toFixed(1)} days away\n${position.source}`;
+          button.onclick = () => {
+            const current = batch && validTracks(batch, Date.now()) ? trackPositions(batch, Date.now()).find(row => row.satellite === position.satellite) : undefined;
+            if (current) { map.locate(current); document.getElementById('map-hint')!.textContent = button!.title.replaceAll('\n', ' · '); }
+          };
+        }
+      }
+      timer = setTimeout(() => draw(id), 250);
+    } catch (error) { failed(error); }
+  }
+  async function prepare(id: number) {
     if (!active() || id !== generation || inFlight) return;
     inFlight = true;
     try {
@@ -38,50 +77,33 @@ export function liveSatellites(runtime: BrowserRuntime, map: ReturnType<typeof c
         orbitalWarning = data.orbital_warnings.map(w => w.message).join(' ');
         fetchedAt = Date.now();
       }
-      const positions = await runtime.positions({...orbital, when_utc: new Date().toISOString()}, event => {
+      status.textContent = 'Precomputing satellite tracks for the next ten minutes…';
+      const calculated = await runtime.tracks({...orbital, when_utc: 'now'}, event => {
         if (id === generation) status.textContent = event.label;
       });
       if (!active() || id !== generation) return;
-      // Do not present an old time as live after a slow first runtime load.
-      const age = Date.now() - Date.parse(positions.when_utc);
-      if (age > 10_000) { timer = setTimeout(() => void tick(id), 0); return; }
-      map.positions(positions.positions, catalogue);
-      status.textContent = `Updated ${positions.when_utc.replace('T', ' ')} · every 5 seconds`;
-      const old = positions.positions.some(p => p.freshness !== 'fresh');
-      warning.textContent = [orbitalWarning, old ? 'Some elements are aged or stale. Refresh or supply newer TLEs; these labels are reminders, not accuracy probabilities.' : ''].filter(Boolean).join(' ');
-      warning.hidden = !warning.textContent;
-      // Keep focused controls intact while their text and coordinates update.
-      for (const position of positions.positions) {
-        let button = list.querySelector<HTMLButtonElement>(`[data-satellite="${position.satellite}"]`);
-        if (!button) { button = document.createElement('button'); button.type = 'button'; button.dataset.satellite = position.satellite; list.append(button); }
-        button.textContent = `${position.satellite} · ${position.alt_km.toFixed(0)} km · ${position.direction} · ${position.freshness}`;
-        button.setAttribute('aria-label', `Locate ${position.satellite}`);
-        button.title = `${position.lat.toFixed(3)}°, ${position.lon.toFixed(3)}° · ground speed ${position.ground_speed_kms.toFixed(2)} km/s\nTLE epoch ${position.epoch_utc} · ${Math.abs(position.tle_age_days).toFixed(1)} days away\n${position.source}`;
-        button.onclick = () => { map.locate(position); document.getElementById('map-hint')!.textContent = button!.title.replaceAll('\n', ' · '); };
-      }
-      timer = setTimeout(() => void tick(id), 5000);
+      if (!validTracks(calculated, Date.now())) throw new Error('The precomputed window expired or the device clock changed. Retry live positions.');
+      batch = calculated; draw(id);
     } catch (error) {
-      if (id !== generation || !active()) return;
-      map.positions([], {}); list.replaceChildren();
-      status.textContent = `Live positions unavailable: ${(error as Error).message}`;
-      retry.hidden = false;
+      if (id === generation && active()) failed(error);
     } finally {
       inFlight = false;
-      // Coalesce rapid input edits and visibility changes into one new request.
-      if (id !== generation && active()) void tick(generation);
+      // Coalesce input edits/pause changes while a batch was being calculated.
+      if (id !== generation && active()) resume();
     }
   }
   function resume() {
-    invalidate(); panel.hidden = !toggle.checked;
+    clear(); panel.hidden = !toggle.checked;
     if (!toggle.checked) return;
     if (paused || document.hidden) { status.textContent = paused ? 'Live positions paused during prediction.' : 'Live positions paused while this tab is hidden.'; return; }
-    void tick(generation);
+    if (batch && validTracks(batch, Date.now())) draw(generation);
+    else void prepare(generation);
   }
   toggle.onchange = resume;
-  retry.onclick = () => { orbital = undefined; resume(); };
+  retry.onclick = () => { orbital = undefined; batch = undefined; resume(); };
   document.addEventListener('visibilitychange', resume);
   return {
     pause(on: boolean) { if (paused === on) return; paused = on; resume(); },
-    refresh() { orbital = undefined; resume(); },
+    refresh() { orbital = undefined; batch = undefined; resume(); },
   };
 }

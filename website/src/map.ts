@@ -16,11 +16,19 @@ export function createMap(onChange: (roi: unknown, label: string) => void) {
   }).on('tileerror', () => {
     if (++failures > 2) document.getElementById('map-hint')!.textContent = 'Basemap unavailable · drawing and predictions still work';
   }).addTo(map);
+  for (const [name, order] of [['night', '300'], ['satellite-tracks', '350']]) {
+    const pane = map.createPane(name); pane.style.zIndex = order; pane.style.pointerEvents = 'none';
+  }
+  const night = L.geoJSON(undefined, {pane: 'night', interactive: false, style: {stroke: false, fillColor: '#10264d', fillOpacity: 0.32, className: 'night-overlay'}}).addTo(map);
+  const tracks = L.geoJSON(undefined, {pane: 'satellite-tracks', interactive: false, style: feature => ({color: feature?.properties.colour || '#2563b9', weight: 2, opacity: 0.85,
+    dashArray: feature?.properties.part === 'past' ? '2 6' : undefined, lineCap: 'round', className: `satellite-track track-${feature?.properties.part}`})}).addTo(map);
   const regions = L.featureGroup().addTo(map);
   const footprints = L.featureGroup().addTo(map);
   const liveMarkers = new Map<string, L.Marker>();
   let liveRows: SatellitePosition[] = [], colours: Record<string, string> = {};
   let passData: FeatureCollection = {type: 'FeatureCollection', features: []};
+  let trackData: FeatureCollection = {type: 'FeatureCollection', features: []};
+  let nightData: FeatureCollection = {type: 'FeatureCollection', features: []};
   let selectPass: (index: number) => void = () => {};
   let globe: Awaited<ReturnType<typeof import('./globe').createGlobe>> | undefined;
   let loading: Promise<void> | undefined, useGlobe = false;
@@ -50,7 +58,7 @@ export function createMap(onChange: (roi: unknown, label: string) => void) {
       if (!globe) {
         loading ??= import('./globe').then(async module => {
           globe = await module.createGlobe(index => selectPass(index), globeFailure);
-          sync(); globe.positions(liveRows, colours);
+          sync(); globe.night(nightData); globe.tracks(trackData); globe.positions(liveRows, colours);
           if (regions.getBounds().isValid()) globe.fit(bounds(regions.getBounds()));
         });
         await loading;
@@ -123,7 +131,9 @@ export function createMap(onChange: (roi: unknown, label: string) => void) {
       const layer = L.geoJSON(result.document.passes[index].geometry);
       if (layer.getBounds().isValid()) { map.fitBounds(layer.getBounds(), {padding: [30, 30], maxZoom: 10}); globe?.fit(bounds(layer.getBounds())); }
     },
-    positions(rows: SatellitePosition[], catalogue: Record<string, SatelliteInfo>) {
+    tracks(data: FeatureCollection) { trackData = data; tracks.clearLayers(); tracks.addData(data); globe?.tracks(data); },
+    night(data: FeatureCollection) { nightData = data; night.clearLayers(); night.addData(data); globe?.night(data); },
+    positions(rows: SatellitePosition[], catalogue: Record<string, SatelliteInfo>, details = true) {
       liveRows = rows; colours = Object.fromEntries(Object.entries(catalogue).map(([name, info]) => [name, info.colour]));
       const names = new Set(rows.map(p => p.satellite));
       for (const [name, marker] of liveMarkers) if (!names.has(name)) { marker.remove(); liveMarkers.delete(name); }
@@ -137,10 +147,12 @@ export function createMap(onChange: (roi: unknown, label: string) => void) {
           liveMarkers.set(row.satellite, marker);
         }
         marker.setLatLng([row.lat, row.lon]);
-        const content = document.createElement('span'); content.textContent = description;
-        marker.unbindTooltip().bindTooltip(content); marker.getElement()?.setAttribute('aria-label', description);
+        if (details) {
+          const content = document.createElement('span'); content.textContent = description;
+          marker.unbindTooltip().bindTooltip(content); marker.getElement()?.setAttribute('aria-label', description);
+        }
       }
-      globe?.positions(rows, colours);
+      globe?.positions(rows, colours, details);
     },
     locate(position: SatellitePosition) {
       map.setView([position.lat, position.lon], 4, {animate: false});

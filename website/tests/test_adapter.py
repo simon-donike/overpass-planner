@@ -184,3 +184,47 @@ def test_simplified_timezone_data_is_small_attributed_and_usable(tmp_path):
         ]
         for lng, lat in locations:
             assert compact.timezone_at(lng=lng, lat=lat) == full.timezone_at(lng=lng, lat=lat)
+
+
+def test_track_batch_matches_public_positions_without_prediction_changes(tmp_path):
+    import numpy as np
+    import pandas as pd
+
+    adapter = module("website_adapter", SITE / "python/browser_adapter.py")
+    text = "\n".join(
+        (ROOT / "tests/fixtures" / name).read_text() for name in ["satellites.tle", "sentinel1.tle"]
+    )
+    names = list(json.loads(adapter.catalogue_json()))
+    tles = fetch_tles(names, tle_text=text, tle_dir=tmp_path, offline=True, verbose=False)
+    anchor = pd.Timestamp("2026-10-29T12:34:56Z")
+    result = json.loads(
+        adapter.tracks_json(
+            json.dumps(
+                {
+                    "when_utc": anchor.isoformat(),
+                    "satellites": names,
+                    "tle_text": text,
+                    "orbital_source": "Frozen historical test elements",
+                }
+            )
+        )
+    )
+    assert pd.Timestamp(result["start_utc"]) == anchor - pd.Timedelta(minutes=10)
+    assert pd.Timestamp(result["valid_until_utc"]) == anchor + pd.Timedelta(minutes=10)
+    assert result["step_s"] == 10
+    assert all(len(track["samples"]) == 181 for track in result["tracks"])
+    for index in [0, 1, 59, 60, 61, 119, 120, 179, 180]:
+        when = anchor + pd.Timedelta(seconds=index * 10 - 600)
+        reference = satellite_positions(tles, when_utc=when).set_index("satellite")
+        for track in result["tracks"]:
+            expected = reference.loc[track["satellite"]]
+            np.testing.assert_allclose(
+                track["samples"][index],
+                [expected.lon, expected.lat, expected.alt_km, expected.ground_speed_kms],
+                rtol=0,
+                atol=1e-7,
+            )
+            assert track["source"] == "Frozen historical test elements"
+            assert pd.Timestamp(track["epoch_utc"]) == pd.Timestamp(
+                tles[track["satellite"]]["epoch_utc"]
+            )
