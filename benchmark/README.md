@@ -7,6 +7,11 @@ use synthetic catalog observations and existing frozen orbital fixtures solely
 to test the harness. The propagation and swath implementation remains Julian
 Manning's, called through `predict_overpasses` without scientific changes.
 
+The completed IAU study's [uncertainty plots](../docs/uncertainty.md) show the
+dependence on initial TLE age and forecast lead, with passing and withheld
+research candidates marked separately. The documentation includes a compact
+result snapshot and an offline figure generator; full run evidence stays local.
+
 ## Questions and estimands
 
 For each simulated issue date, freeze elements that were available at that date

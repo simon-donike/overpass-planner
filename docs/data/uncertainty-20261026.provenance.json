@@ -1,0 +1,128 @@
+{
+  "purpose": "Documentation result snapshot; not a regression baseline or production calibration",
+  "study_id": "22ff17e444ad53302328d99a523e5af4c1e31dca6d20585d524e7838217454f8",
+  "source_run": "benchmark/runs/historical-20261026-age-v2",
+  "source_sha256": {
+    "analysis.json": "8c3dd7ccbc41a76ed8f87d757a6f45e959b87608d1d0d3e51ee0e07076cb9e95",
+    "manifest.json": "ff9dce93a08ee1dc34deb3fdd262624d8582704bbb8d244a95398d7feaa9f1a5"
+  },
+  "csv_sha256": "4f3b4a579b5d1e405aabdcdacc20f1e3f1d64e2c79ee5c4945e572a3389ecba2",
+  "scientific_attribution": "Julian Manning",
+  "stratum": {
+    "surface": "land",
+    "latitude_band": "temperate",
+    "edge_band": "interior"
+  },
+  "quantity": "Calibration candidate symmetric half-width enclosing the product-time proxy interval, conditional on a unique catalogue match",
+  "study": {
+    "bootstrap_replicates": 1000,
+    "coverage_tolerance": 0.05,
+    "element_cutoff_lags_days": [
+      0,
+      1,
+      3,
+      7,
+      14
+    ],
+    "event_merge_gap_s": 120.0,
+    "holdout_fraction": 0.35,
+    "horizon_days": 60,
+    "horizon_edges_days": [
+      0,
+      1,
+      3,
+      7,
+      14,
+      30,
+      45,
+      60
+    ],
+    "interval_level": 0.9,
+    "latitude_cells": 12,
+    "longitude_cells": 24,
+    "match_gate_s": 1800.0,
+    "maturity_days": 30,
+    "max_initial_tle_age_days": 30,
+    "max_unknown_fraction": 0.05,
+    "min_calibration_origins": 10,
+    "min_holdout_origins": 6,
+    "min_matches": 200,
+    "min_spatial_blocks": 20,
+    "origins": [
+      "2023-09-27T21:31:16Z",
+      "2023-11-28T01:31:08Z",
+      "2024-01-30T01:31:04Z",
+      "2024-03-31T01:31:11Z",
+      "2024-05-31T01:31:11Z",
+      "2024-07-31T08:00:35Z",
+      "2024-09-30T08:00:48Z",
+      "2024-11-30T08:00:52Z",
+      "2025-01-30T08:30:32Z",
+      "2025-04-01T08:30:50Z",
+      "2025-06-01T08:31:05Z",
+      "2025-08-01T08:31:06Z",
+      "2025-10-01T08:32:15Z",
+      "2025-12-02T00:01:26Z",
+      "2026-02-01T00:01:30Z",
+      "2026-04-03T08:01:16Z",
+      "2026-06-03T08:01:30Z"
+    ],
+    "probe_assets": true,
+    "request_interval_s": 1,
+    "s1_mode": "IW",
+    "satellites": [
+      "LANDSAT 8",
+      "LANDSAT 9",
+      "SENTINEL-2A",
+      "SENTINEL-2B"
+    ],
+    "seed": 20261026,
+    "sites_per_cell": 1,
+    "skip_repeated_access_denials": true,
+    "timestamp_padding_s": {
+      "Landsat": 30.0,
+      "Sentinel-1": 60.0,
+      "Sentinel-2": 300.0
+    }
+  },
+  "split": {
+    "calibration_origins": [
+      "2023-09-27T21:31:16Z",
+      "2023-11-28T01:31:08Z",
+      "2024-01-30T01:31:04Z",
+      "2024-03-31T01:31:11Z",
+      "2024-05-31T01:31:11Z",
+      "2024-07-31T08:00:35Z",
+      "2024-09-30T08:00:48Z",
+      "2024-11-30T08:00:52Z",
+      "2025-01-30T08:30:32Z",
+      "2025-04-01T08:30:50Z",
+      "2025-06-01T08:31:05Z"
+    ],
+    "holdout_origins": [
+      "2025-08-01T08:31:06Z",
+      "2025-10-01T08:32:15Z",
+      "2025-12-02T00:01:26Z",
+      "2026-02-01T00:01:30Z",
+      "2026-04-03T08:01:16Z",
+      "2026-06-03T08:01:30Z"
+    ]
+  },
+  "full_study_case_counts": {
+    "complete/complete": 97920
+  },
+  "full_study_groups": 1667,
+  "full_study_validated_groups": 18,
+  "plotted_groups": 140,
+  "plotted_validated_groups": 17,
+  "limitations": [
+    "Timing is conditional on matching; unobserved acquisitions have no measured timing residual.",
+    "Catalog absence within a finite gate is not proof of non-acquisition or an orbital error.",
+    "Product sensing intervals/padded timestamps are proxies, not exact ROI sensing times.",
+    "Asset verification establishes one readable byte in at least one data asset, not valid or cloud-free pixels.",
+    "Bootstrap CIs assume separated origin blocks are sufficiently independent; they are not distribution-free guarantees.",
+    "Heldout dates test temporal transfer at the sampled sites, not transfer to unseen geographic populations.",
+    "Intervals are pointwise, not simultaneous across all groups; multiplicity and future regime changes remain.",
+    "No estimate of position error or kilometre accuracy is made from these timestamps."
+  ]
+}

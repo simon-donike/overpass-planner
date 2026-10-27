@@ -1,285 +1,180 @@
-# eo-overpass-predictor
+<p align="center">
+  <img src="website/public/logo.svg" alt="Overpass website logo" width="180">
+</p>
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23629976.svg)](https://doi.org/10.5281/zenodo.23629976)
+<h1 align="center">EO Overpass Predictor</h1>
 
-Predict when the instrument swath of **Landsat 8/9, Sentinel-2A/B/C, or Sentinel-1C/D** intersects a region of interest. Results include ROI coverage, entry/exit and closest-approach times, UTC and DST-aware local times, illumination, viewing geometry, and TLE age. Sentinel-1 and Sentinel-2 predictions can be checked against ESA acquisition plans.
+<p align="center">
+  Plan Landsat and Sentinel observations from your browser, terminal, or Python.
+</p>
 
-The scientific implementation is by **Julian Manning**. This development version packages that implementation for Python, the command line, and notebooks. It preserves the original orbital methodology; packaging regression tests are separate from independent validation against real acquisitions.
+<p align="center">
+  <a href="https://overpass.hyperalislabs.com"><strong>Open the web planner</strong></a>
+  · <a href="docs/cli.md">CLI guide</a>
+  · <a href="docs/api.md">Python API</a>
+  · <a href="website/README.md">Website documentation</a>
+</p>
 
-![Example overpass timeline](docs/assets/overpass_timeline_example.png)
+<p align="center">
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11 or newer"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>
+</p>
 
-*Historical example from the original notebook workflow, not output from the frozen test fixtures.*
+Find out **when Landsat and Sentinel satellites will cover your area**, compare
+upcoming passes, and take the results into your own workflow. Use the web planner,
+run a quick terminal forecast, or build predictions into Python.
 
-## Installation
+Built on **Julian Manning's original scientific implementation**; see
+[credits and citation](#credits-citation-and-license).
 
-Python **3.11–3.14** is tested. Conda and Jupyter are optional. This checkout is a development version (`1.1.0.dev0`); these commands install the checkout, without assuming a published PyPI release exists.
+![Predicted satellite footprints and a local-time pass timeline for Cabauw BSRN station](docs/assets/predicted_overpasses.png)
 
-With [uv](https://docs.astral.sh/uv/), from the repository root:
+*Generated for our [Cabauw example point](examples/data/cabauw_netherlands.geojson)
+using frozen orbital data for 26 October–1 November 2026. This historical
+example shows predicted swath coverage.*
+
+## What you can do
+
+- **Plan observations for your area.** Select a point, draw a region, or bring your
+  own boundary file. See which passes cover it and when they arrive in local time.
+- **Compare optical and radar opportunities.** Explore Landsat 8/9,
+  Sentinel-2A/B/C, and Sentinel-1C/D, with coverage and daylight filters.
+- **Explore passes visually.** Inspect footprints, browse a timeline, and follow
+  estimated satellite positions on a map or globe.
+- **Check Sentinel acquisition plans.** Use the CLI or Python API to compare
+  predictions with ESA plans when available.
+- **Share and reuse results.** Export tables, geographic data, or an interactive
+  HTML planner, and connect the package to scripts and notebooks.
+
+## Try the web planner
+
+**[Open Overpass →](https://overpass.hyperalislabs.com)**
+
+Draw your area, choose satellites and dates, and explore the results on a 2D map
+or 3D globe. Select a pass to inspect its footprint, compare coverage in the
+results table, and download your selection.
+
+The prediction package runs in your browser. Your regions and results stay there;
+map tiles and orbital data need network access. The first run can take a little
+longer while the Python environment loads. ESA plan checks are available through
+the CLI and Python API.
+
+## See your observation window
+
+Compare opportunities across missions, then export an interactive HTML report to
+inspect individual passes and footprints. Reports are snapshots: refresh them as
+orbital data age or the prediction window expires.
+
+## Explore historical performance
+
+The generated benchmark plots show how timing comparisons change with the age of
+orbital data and how far ahead a prediction is made.
+
+![Historical timing comparison versus forecast lead for Landsat 8/9 and Sentinel-2A/B, with passing and withheld research candidates marked](docs/assets/uncertainty/versus-forecast-lead.png)
+
+*Looking further ahead: Landsat timing ranges generally widen with longer
+forecasts. Filled markers passed the study's research checks; open markers are
+withheld. The missions use different vertical scales.*
+
+These historical comparisons use product timestamps and catalogue matches.
+Exact timing at the target and usable imagery remain unvalidated.
+Sentinel-2 timestamp differences need further study.
+
+See [the results and how to read them](docs/uncertainty.md) for the study's scope,
+validation status, and reproducible data, or the
+[benchmark documentation](benchmark/README.md) for the full methodology.
+
+## Get started locally
+
+Requires **Python 3.11+** and [uv](https://docs.astral.sh/uv/). Install this fork
+from a checkout:
 
 ```bash
+git clone https://github.com/simon-donike/eo-overpass-predictor.git
+cd eo-overpass-predictor
 uv sync
-uv run eo-overpass --help
 ```
 
-For a runtime-only environment use `uv sync --no-dev` and `uv run --no-dev eo-overpass --help`. Alternatively, install into an existing virtual environment with pip:
+### Command line
 
-```bash
-python -m pip install .
-# Optional maps and plots:
-python -m pip install '.[visualization]'
-# Optional notebook environment, including maps, plots and live widgets:
-python -m pip install '.[notebooks]'
-```
-
-GeoPandas/pyogrio and pyproj normally install using binary wheels. Platforms without compatible wheels may need native geospatial build dependencies. No Conda-only dependency is required.
-
-## Python quick start
-
-```python
-from eo_overpass_predictor import (
-    load_roi,
-    fetch_tles,
-    predict_overpasses,
-    summarise_overpasses,
-    export_overpass_csv,
-)
-
-roi = load_roi((144.35, -38.35, 145.15, -37.80), name="Port_Phillip_Bay")
-tles = fetch_tles(satellites=["S2B"])  # Use "S1" for Sentinel-1C/D.
-passes = predict_overpasses(
-    roi,
-    tles,
-    start_utc="2026-11-01",
-    days=14,
-    timezone_name="Australia/Melbourne",
-)
-print(summarise_overpasses(passes))
-export_overpass_csv(passes, out_dir="OUTPUT", file_name="predictions.csv")
-```
-
-`predict_overpasses` performs no downloads or file writes. Dates without an offset mean UTC. The API retains the original `start_utc` plus `days` interface; the CLI translates its start/end window to the same duration. Choose dates near the epoch of the supplied elements: historical predictions require suitable historical TLEs.
-
-Runnable examples: [online prediction](examples/predict.py) and [frozen offline example](examples/offline_prediction.py).
-
-## Command line
-
-Find upcoming passes without creating an ROI file or choosing an export path:
+Find passes for a point over the next 14 days, or export a Sentinel planner:
 
 ```bash
 uv run eo-overpass next --point 144.96 -37.82
-uv run eo-overpass next --bbox 144.35 -38.35 145.15 -37.80 --days 7 --min-coverage 80
-uv run eo-overpass next --point 144.96 -37.82 --satellite S2 --output planner.html
-uv run eo-overpass next --point 144.96 -37.82 --days 7 --json
+uv run eo-overpass next --point 144.96 -37.82 --satellite S1 S2 --output planner.html
 ```
 
-Coordinates are **longitude, latitude**. `next` takes exactly one of `--point`,
-`--bbox`, or `--roi`; it defaults to the current UTC minute through the next 14
-days. Use `--start` for an explicit date. Terminal reports show local/UTC times,
-coverage, imaging eligibility, acquisition-plan evidence, and element freshness.
-Export is optional; CSV, GeoJSON, GeoPackage and HTML are supported.
+Coordinates are **longitude, latitude**. You can also use a bounding box or a
+region file, choose dates and coverage filters, and request JSON for automation.
+See the [CLI guide](docs/cli.md) for options and examples.
 
-```bash
-uv run eo-overpass satellites
-uv run eo-overpass satellites --mission Sentinel-2
-
-uv run eo-overpass predict \
-  --roi area.geojson --start 2026-11-01 --end 2026-11-15 \
-  --satellite S2 --output predictions.csv
-
-uv run eo-overpass predict \
-  --roi area.geojson --start 2026-11-01 --end 2026-11-15 \
-  --satellite S1 --s1-mode IW --output sentinel1.csv
-
-uv run eo-overpass predict \
-  --roi area.geojson --start 2026-11-01 --end 2026-11-15 \
-  --satellite S2B S2C --min-coverage 25 --plans DATA/KML \
-  --output footprints.gpkg
-
-uv run eo-overpass tracker \
-  --roi area.geojson --start 2026-11-01 --end 2026-11-15 \
-  --satellite LS --output live_tracker.html
-```
-
-Use `next --help`, `predict --help` or `tracker --help` for all options. `--satellite S2` selects Sentinel-2A/B/C, `--satellite S1` selects Sentinel-1C/D, and `--satellite LS` selects Landsat 8/9. Multiple values can follow one option (`--satellite S1 S2`), ending at the next option. Comma-separated values and repeated options also work. Names and group aliases are case insensitive; full names containing spaces must be quoted, and NORAD IDs are accepted. Overlapping selections are included only once, in first-selected order. Omitting the option selects all seven satellites. `--s1-mode` chooses Sentinel-1 IW or EW (IW is the default). `--timezone` overrides automatic ROI-local timezone selection. `--all-passes` includes night/ascending optical geometric passes; Sentinel-1 is day/night and ascending/descending by design. Output suffixes select CSV, GeoJSON, GeoPackage or HTML; explicit `--format` must agree with the suffix.
-
-`--plans` uses local KML/KMZ files or a directory. `--fetch-plans` explicitly retrieves ESA plans and cannot be combined with `--plans` or `--offline`. Missing optional plans yield **no plan loaded**, which means unknown acquisition status. Exit codes are 0 for success (including an empty prediction), 2 for invalid inputs, and 1 for operational failures.
-
-All leaf commands support `--json` for one versioned response on stdout, with
-diagnostics on stderr, structured errors, resolved inputs, and TLE provenance.
-See the [CLI and automation guide](docs/cli.md) and [JSON Schema](docs/cli-output.schema.json).
-
-## Offline operation and caches
-
-Installing from PyPI does not require storing data in `/tmp` or inside the installed package. Reusable downloads belong in the OS user cache, temporary work belongs in the system temporary directory, and reports belong at your chosen output path.
-
-Default download roots follow [platformdirs](https://platformdirs.readthedocs.io/en/latest/api.html): typically `~/.cache/eo-overpass-predictor` on Linux (honouring `XDG_CACHE_HOME`), `~/Library/Caches/eo-overpass-predictor` on macOS, and the user local application cache on Windows. `cache info` prints the actual location. Override with CLI `--cache-dir`, or API `tle_dir`/`plan_dir` for individual directories.
-
-- **TLEs:** one file per satellite, at most seven stable filenames. New elements replace previous ones atomically. Fresh entries are reused for 12 hours; stale entries remain available with warnings for offline/network-failure fallback.
-- **ESA plans:** after successful online retrieval, the default cache removes downloads older than 30 days, then the oldest remaining files toward a 50 MiB budget. Files returned for the current request are protected, including historical plans; they may temporarily exceed the budget. Offline loading does not prune files. Explicit `plan_dir` and `--cache-dir` overrides are not automatically pruned.
-- **Temporary mode:** add `--no-cache` to `next`, `predict` or `tracker`. Downloads use a unique system temporary directory, removed on normal completion or Python errors. It ignores persistent caches, so `--offline --no-cache` requires supplied TLEs for every selected satellite. It cannot be combined with `--cache-dir`.
-- **Outputs:** CSV, GeoJSON, GeoPackage and HTML remain at `--output` until you remove them. Supplied ROI/TLE/plan files are read as inputs. Cache management never searches output directories or unrelated folders.
-
-```bash
-uv run eo-overpass cache info
-uv run eo-overpass cache clear
-uv run eo-overpass cache clear --cache-dir /path/to/custom-cache
-uv run eo-overpass predict \
-  --roi area.geojson --start 2026-11-01 --end 2026-11-15 \
-  --satellite S2 --no-cache --output predictions.csv
-```
-
-`cache clear` removes only recognised download filenames inside `tle/` and `plans/`, plus package temporary-write files; it preserves unrelated files and skips symlinks. Clearing removes the orbital inputs needed for cache-only offline runs. Cache commands do not create directories. Atomic writes clean up unfinished files after ordinary errors; managed-cache maintenance also removes abandoned write files older than a day. A forcibly killed process can leave a temporary directory, subject to the OS's normal temporary-file cleanup.
-
-For Python calls without persistent caching, use `tempfile.TemporaryDirectory()` around retrieval and loading, passing its path to `tle_dir` and/or `plan_dir`. Keep the context open until the returned plan paths have been loaded. `predict_overpasses` itself only calculates from supplied inputs and creates no files.
+### Python
 
 ```python
-from pathlib import Path
-from eo_overpass_predictor import fetch_tles
+from eo_overpass_predictor import fetch_tles, load_roi, predict_overpasses
 
-tles = fetch_tles(
-    satellites=["S2B"],
-    tle_text=Path("saved-elements.tle").read_text(),
-    tle_dir="DATA/TLE",
-    offline=True,
-)
+roi = load_roi((144.35, -38.35, 145.15, -37.80), name="Port_Phillip_Bay")
+tles = fetch_tles(satellites=["S1", "S2"])
+passes = predict_overpasses(roi, tles, days=7)
+print(passes)
 ```
 
-Offline mode never requests orbital data from a service. All selected satellites must be present in the supplied text or cache. Manually supplied elements override and update their cache entries. TLE checksums and paired NORAD identifiers are validated.
+Retrieving orbital data is explicit; the prediction function calculates from the
+inputs you supply. See the [Python API](docs/api.md) and
+[runnable examples](examples/) for exports, offline use, and integration.
 
-A fully offline command using the bundled *historical regression* inputs:
-
-```bash
-uv run eo-overpass predict \
-  --roi examples/data/port_phillip_bay_australia.geojson \
-  --start 2026-10-26 --end 2026-10-27 --satellite S2B \
-  --tle-file tests/fixtures/satellites.tle --offline \
-  --cache-dir DATA --output OUTPUT/offline-example.csv
-```
-
-The fixed inputs demonstrate reproducibility; do not use them as current orbital elements. Sample inputs are versioned in `examples/data/`, historical sample reports in `examples/outputs/`, and documentation images in `docs/assets/`. Local `DATA/` caches and `OUTPUT/` reports are created as needed and ignored by Git. The demonstration notebooks intentionally use their configured workspace's `DATA/TLE`, `DATA/KML` and `OUTPUT` directories; these explicit workspace paths are outside automatic cache retention.
-
-## Example regions and sites
-
-Each sample is a single GeoJSON file with WGS84 longitude/latitude coordinates, named `place_country.geojson`:
-
-| Region or site | Geometry | Sample ROI | Local time zone |
-|---|---|---|---|
-| Port Phillip Bay, Australia | Polygon | [port_phillip_bay_australia.geojson](examples/data/port_phillip_bay_australia.geojson) | `Australia/Melbourne` |
-| Madrid, Spain | Polygon | [madrid_spain.geojson](examples/data/madrid_spain.geojson) | `Europe/Madrid` |
-| Austin, Texas, USA | Polygon | [austin_usa.geojson](examples/data/austin_usa.geojson) | `America/Chicago` |
-| Cabauw, Netherlands | Point | [cabauw_netherlands.geojson](examples/data/cabauw_netherlands.geojson) | `Europe/Amsterdam` |
-| Railroad Valley, Nevada, USA | Point | [railroad_valley_usa.geojson](examples/data/railroad_valley_usa.geojson) | `America/Los_Angeles` |
-
-The polygon samples are illustrative rectangular study areas. Port Phillip Bay preserves the original sample extent; the city examples are approximate areas around each city, not administrative boundaries.
-
-The point samples represent observation sites useful for planning comparisons with ground measurements:
-
-- **Cabauw:** the BSRN surface radiation station, at longitude 4.9267°, latitude 51.9711°. Coordinates and site information: [KNMI station publication](https://www.knmi.nl/research/publications/basic-measurements-of-radiation-at-station-cabauw-koninklijk-nederlands-meteorologisch-instituut-de-bilt).
-- **Railroad Valley:** the center of the RadCalNet radiometric calibration area, at longitude −115.690°, latitude 38.497°. Coordinates and site information: [RadCalNet quickstart guide, section 4.2.1.1](https://www.radcalnet.org/resources/RadCalNetQuickstartGuide_20180702.pdf).
-
-For a point ROI, coverage is reported as 0 or 100%; it tests whether the point lies inside the modeled swath. The Railroad Valley point represents the center of the published calibration area. These samples supply locations for prediction, without loading ground measurements or imagery observations.
-
-In either prediction notebook, set `ROI_FILE` to the desired filename. The CLI accepts the same files:
-
-```bash
-uv run eo-overpass next --roi examples/data/madrid_spain.geojson --satellite S2
-uv run eo-overpass next --roi examples/data/austin_usa.geojson --satellite LS
-uv run eo-overpass next --roi examples/data/railroad_valley_usa.geojson --satellite LS
-```
-
-## Supported instruments and scientific assumptions
-
-| Satellite | Alias | NORAD | Instrument | Full swath |
-|---|---|---:|---|---:|
-| Landsat 8 | L8 | 39084 | OLI/TIRS | 185 km |
-| Landsat 9 | L9 | 49260 | OLI-2/TIRS-2 | 185 km |
-| Sentinel-2A | S2A | 40697 | MSI | 290 km |
-| Sentinel-2B | S2B | 42063 | MSI | 290 km |
-| Sentinel-2C | S2C | 60989 | MSI | 290 km |
-| Sentinel-1C | S1C | 62261 | C-SAR | IW/EW, right-looking |
-| Sentinel-1D | S1D | 66315 | C-SAR | IW/EW, right-looking |
-
-The optical engine uses Skyfield SGP4 propagation, WGS84 geodesic cross-track scan lines, an ROI-centred Lambert azimuthal equal-area projection, a 30-second coarse scan and 1-second refinement. Closest approach uses the original parabolic refinement and 0.1-second rounding. Sentinel-1 uses the same pipeline with a nominal right-looking SAR footprint on the WGS84 ellipsoid. IW and EW near/far look angles use the published 698–726 km altitude roll tables, clamped outside that range. Sentinel-1 is eligible day and night on ascending or descending passes; solar thresholds apply only to optical sensors. This is nominal geometric capability, not a guarantee of acquisition or available imagery.
-
-The original sampling convention includes window endpoints and may include a final fine-grid sample beyond a fractional endpoint. The refactor does not apply a new half-open-window filter. At least one fine time step is required; steps must be finite, positive, and fine must not exceed coarse.
-
-Geometry indicates that an instrument **can** image an ROI. Acquisition, processing, delivery, and cloud-free imagery are not guaranteed. Landsat plans are not verified. ESA KML footprints are simplified; edge passes can appear unplanned despite an overlapping datatake. Fresh TLEs are important, especially after orbital manoeuvres. Treat swath-edge margins of approximately ±5 km as uncertain. A missing Sentinel-1 or Sentinel-2 plan means unknown acquisition; a loaded plan with no match means not planned.
-
-Use compact ROIs. Very large, polar, or antimeridian-spanning prediction ROIs retain the original projection/swath limitations; antimeridian handling in ESA plan matching does not establish general global prediction accuracy. Sentinel-1 footprints are nominal right-looking geometry and do not model terrain, burst timing, Stripmap or Wave mode. Mission-status notes in catalogue output are preserved from October 2026 and are dated context, not a continuously updated operational feed.
-
-## Inputs, results and exports
-
-`load_roi` accepts vector file paths, GeoDataFrames/GeoSeries in a declared CRS, Shapely geometries, supported WKT strings, `(lon, lat)` points, `(west, south, east, north)` bounds, and GeoJSON geometry/Feature/FeatureCollection mappings. In-memory geometry, WKT, tuples and GeoJSON mappings use WGS84 longitude/latitude. Missing CRS in a geospatial frame produces a warning and assumes EPSG:4326. Features are dissolved and invalid geometry is repaired; empty or out-of-range coordinates are rejected. An optional nonnegative buffer is applied in the original local equal-area projection.
-
-Predictions are EPSG:4326 GeoDataFrames, one row per overpass, sorted by closest-approach time. Their `attrs` contain `roi_name`, `timezone`, `window_start_utc`, `window_end_utc`, and the resolved `s1_mode`. Empty results retain the schema and timezone-aware time columns.
-
-| Columns | Meaning |
-|---|---|
-| `satellite`, `mission`, `sensor`, `norad_id` | Satellite and instrument identity. |
-| `direction`, `imaging_expected`, `roi_coverage_pct` | Acquisition filter and fraction of the ROI covered; points report 100% when intersected. |
-| `roi_entry_utc`, `overpass_utc`, `roi_exit_utc`, `duration_s` | Swath intersection window and refined closest approach. |
-| `roi_entry_local`, `overpass_local`, `roi_exit_local`, `timezone`, `utc_offset` | The same instants in the ROI IANA zone with per-date DST offsets. |
-| `nadir_offset_km`, `roi_side_of_track`, `edge_margin_km`, `view_angle_deg` | Viewing geometry relative to the ROI anchor; Sentinel-1 also reports `s1_mode`, `look_side` and `incidence_angle_deg`. |
-| `max_elevation_deg`, `sun_elevation_deg`, `sat_altitude_km` | Elevation, illumination and altitude. |
-| `tle_epoch_utc`, `tle_age_days`, `note`, `geometry` | Orbital provenance, dated mission context and display swath footprint. |
-| `esa_plan_status`, `esa_datatake_id`, `esa_relative_orbit`, `esa_mode`, `esa_polarisation` | Added by acquisition-plan cross-checking. Sentinel-1 matching reports `planned` for a covering user plan. |
-
-CSV export omits geometry, preserves original whole-second ISO timestamp serialization (`Z` for UTC and explicit local offsets), and adds `local_date`, `local_time` and `local_weekday`. Structured API results retain subsecond closest-approach timestamps. GeoJSON/GeoPackage export includes footprints and serializes timezone-aware attributes to strings. The legacy shapefile exporter also remains available through the API, subject to that format's field-name and type limits.
-
-See the [API reference](docs/api.md) for function groups and ESA status values.
-
-## Notebooks and visualization
-
-HTML exports include a planning view: filter and sort passes, select one in the
-list or timeline to inspect its footprint at closest approach, and return to live
-tracking. The prediction window and expired-report notice are visible above the
-map. Each pass separates geometric coverage, expected imaging, acquisition-plan
-evidence, and TLE age at the pass. Missing plans mean **unknown**, and age labels
-are refresh reminders rather than accuracy estimates. See the [planner guide](docs/cli.md#use-the-html-planner).
+### Notebooks
 
 ```bash
 uv sync --extra notebooks
 uv run --extra notebooks jupyter lab
 ```
 
-Run [setup diagnostics](notebooks/p00_overpass_env_setup.ipynb), [prediction/reporting](notebooks/p01_overpass_prediction.ipynb), then [live tracking](notebooks/p02_overpass_live_tracker.ipynb). All import the installed package. The notebooks discover the repository from the root or `notebooks/` directory and load the bundled ROI from `examples/data/`. Set `EO_OVERPASS_WORKSPACE` to choose another directory for local caches and reports; it does not need to exist yet. Notebook exports go to its `OUTPUT/` directory.
+Open the [prediction notebook](notebooks/p01_overpass_prediction.ipynb) for maps
+and timelines, or the [live tracker](notebooks/p02_overpass_live_tracker.ipynb)
+to explore satellite motion.
 
-For maps and timelines without Jupyter, install only the `visualization` extra. The widget tracker requires a running notebook event loop and supports `tracker.stop()` / `tracker.start()`. The standalone HTML tracker embeds TLEs, predictions and coastlines, requires no Python to view, and loads satellite.js and font styles from public CDNs. Folium/ipyleaflet basemaps require network access. Embedded TLEs and countdown windows age; re-export to refresh them.
+## Reading a forecast
 
-The original scientific explanations, validation examples, images and [historical notebook documentation](docs/original-notebook-workflow.md) are retained. [Migration notes](docs/migration.md) describe moved paths and changed defaults.
+A predicted pass means the modeled imaging swath intersects your area. It does
+not guarantee an acquisition or cloud-free imagery. Missing ESA plans mean
+acquisition is **unknown**; Landsat acquisition is **not checked**. Even a planned
+acquisition, including a non-nominal plan, may not produce imagery. The package
+does not check imagery availability.
 
-## Development and testing
+Use fresh orbital data near your chosen dates. The 7/14-day freshness labels flag
+when to refresh the data; they provide no accuracy probability. Allow for uncertainty near swath
+edges (approximately ±5 km), and take extra care with very large, polar, or
+antimeridian-spanning regions. Sentinel-1 uses nominal radar geometry.
 
-```bash
-uv sync --all-extras
-uv run pytest
-uv run ruff check .
-uv run ruff format --check .
-uv run mypy
-uv build
-uv run twine check dist/*
-uv run python tests/validate_distribution.py dist/eo_overpass_predictor-1.1.0.dev0-py3-none-any.whl
-# Optional local hooks:
-uv run pre-commit install
-```
+## Documentation
 
-Plain `uv sync` installs base and development dependencies. Optional-feature tests skip when their extras are absent; use `--all-extras` for the complete suite. Tests use fixed, sourced TLEs, fixed dates and mocked HTTP services, with no live data dependency. Notebook tests start local Jupyter kernels and therefore need local socket permissions. Distribution validation installs dependencies first, then checks the installed API and CLI offline outside the checkout. `uv build` builds the wheel from its source distribution.
+| For… | Read… |
+|---|---|
+| Commands, filters, exports, and offline use | [CLI guide](docs/cli.md) |
+| Python workflows and integration | [API reference](docs/api.md) |
+| Browser setup, privacy, and development | [Website guide](website/README.md) |
+| Scientific method and original examples | [Original notebook workflow](docs/original-notebook-workflow.md) |
+| Historical performance and limitations | [Uncertainty plots](docs/uncertainty.md) · [Benchmark](benchmark/README.md) |
+| Contributing, checks, and releases | [Repository conventions](AGENTS.md) · [Release guide](docs/releasing.md) |
 
-[Regression provenance](tests/fixtures/README.md) explains reference generation, versions and tolerances. Updating references requires review, not simply accepting changed outputs. CI runs one Ubuntu test job with Python 3.12. Formatting, typing and distribution checks can be run locally. [Release instructions](docs/releasing.md) describe the separate tag-only PyPI workflow; normal pushes and pull requests do not publish.
+## Credits, citation, and license
 
-The opt-in [historical benchmark](benchmark/README.md) designs 60-day forecasts at
-global sample points using archived elements available at each issue date. It
-separates catalog matches, file accessibility and product-time discrepancies,
-with blocked statistical analysis, explicit TLE-age cohorts and a temporal holdout.
-Local run artifacts retain observational evidence and validation status; offline
-tests do not establish prediction accuracy or change user labels.
+**Julian Manning** created the original scientific implementation and notebooks,
+including the orbital propagation, optical swath geometry, and original reporting
+methodology. See his
+[original repository](https://github.com/julianManning/eo-overpass-predictor) and
+[ORCID](https://orcid.org/0000-0003-4481-5474).
 
-## Citation, attribution and license
+**Original DOI:** [10.5281/zenodo.23629976](https://doi.org/10.5281/zenodo.23629976).
+This identifies **Julian Manning's original 1.0.0 release**.
+Use [CITATION.cff](CITATION.cff) to cite that original scientific software.
 
-**Original author:** Julian Manning — [ORCID](https://orcid.org/0000-0003-4481-5474), [email](mailto:julian.manning@outlook.com). The SGP4/swath scientific implementation and original notebooks are his work. Subsequent packaging contributions introduce the installable layout, CLI, regression suite, dependency lock, and automation without claiming authorship of the original science.
+This fork builds on Julian's work with an installable Python package, CLI,
+browser planner, Sentinel-1 support, and expanded data handling and tests.
 
-The original [CITATION.cff](CITATION.cff), version 1.0.0 citation and [Zenodo DOI](https://doi.org/10.5281/zenodo.23629976) remain intact. The development package version is distinct from that archived scientific release. The [MIT license](LICENSE) and original copyright notice are unchanged.
-
-Data attribution: orbital elements from [CelesTrak](https://celestrak.org/); acquisition plans © ESA from its [Sentinel-1](https://sentinels.copernicus.eu/copernicus/sentinel-1/acquisition-plans) and [Sentinel-2](https://sentinels.copernicus.eu/copernicus/sentinel-2/acquisition-plans) pages; embedded Natural Earth 1:50m coastlines (public domain), via world-atlas. Key software includes [Skyfield](https://rhodesmill.org/skyfield/), [satellite.js](https://github.com/shashwatak/satellite-js), and [timezonefinder](https://github.com/jannikmi/timezonefinder).
-
-Related original projects: [CDSE Sentinel-2 pipeline](https://github.com/julianManning/cdse-sentinel2-pipeline) and [CDSE Sentinel-1 pipeline](https://github.com/julianManning/cdse-sentinel1-pipeline).
+Released under the [MIT license](LICENSE), retaining Julian Manning's original
+copyright notice. Orbital elements come from [CelesTrak](https://celestrak.org/);
+acquisition plans are © ESA. Maps use attributed OpenStreetMap data and
+public-domain Natural Earth coastlines. See the
+[website documentation](website/README.md) for further third-party attribution.
