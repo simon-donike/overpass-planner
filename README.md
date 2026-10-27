@@ -267,6 +267,13 @@ Plain `uv sync` installs base and development dependencies. Optional-feature tes
 
 [Regression provenance](tests/fixtures/README.md) explains reference generation, versions and tolerances. Updating references requires review, not simply accepting changed outputs. CI runs one Ubuntu test job with Python 3.12. Formatting, typing and distribution checks can be run locally. [Release instructions](docs/releasing.md) describe the separate tag-only PyPI workflow; normal pushes and pull requests do not publish.
 
+The opt-in [historical benchmark](benchmark/README.md) designs 60-day forecasts at
+global sample points using archived elements available at each issue date. It
+separates catalog matches, file accessibility and product-time discrepancies,
+with blocked statistical analysis, explicit TLE-age cohorts and a temporal holdout.
+Local run artifacts retain observational evidence and validation status; offline
+tests do not establish prediction accuracy or change user labels.
+
 ## Citation, attribution and license
 
 **Original author:** Julian Manning — [ORCID](https://orcid.org/0000-0003-4481-5474), [email](mailto:julian.manning@outlook.com). The SGP4/swath scientific implementation and original notebooks are his work. Subsequent packaging contributions introduce the installable layout, CLI, regression suite, dependency lock, and automation without claiming authorship of the original science.

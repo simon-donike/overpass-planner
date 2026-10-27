@@ -55,10 +55,12 @@ dev = [
 packages = ["src/eo_overpass_predictor"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "examples", "notebooks", "docs", "README.md", "AGENTS.md", "LICENSE", "CITATION.cff", "pyproject.toml", "uv.lock", ".github", ".pre-commit-config.yaml"]
+include = ["src", "tests", "benchmark", "examples", "notebooks", "docs", "README.md", "AGENTS.md", "LICENSE", "CITATION.cff", "pyproject.toml", "uv.lock", ".github", ".pre-commit-config.yaml"]
+exclude = ["/benchmark/runs", "/benchmark/inputs"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 markers = ["notebooks: headless execution of example notebooks", "visualization: optional presentation dependencies"]
 
 [tool.ruff]
